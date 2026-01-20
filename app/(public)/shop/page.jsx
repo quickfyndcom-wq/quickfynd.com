@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
 import ProductCard from "@/components/ProductCard"
+import ProductFilterSidebar from "@/components/ProductFilterSidebar"
 import { MoveLeftIcon } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSelector } from "react-redux"
@@ -87,38 +88,62 @@ import { useSelector } from "react-redux"
         ? category.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
         : 'All Products';
 
+    const handleFilterChange = (filters) => {
+        setActiveFilters(filters);
+    };
+
     return (
         <div className="min-h-[70vh]">
-            <div className="max-w-7xl mx-auto px-4 lg:px-6">
-                {/* Products Grid */}
-                <div className="w-full">
-                    <h1 onClick={() => router.push('/shop')} className="text-2xl text-slate-500 my-6 flex items-center gap-2 cursor-pointer"> 
-                        {(search || category) && <MoveLeftIcon size={20} />}  
-                        {category ? (
-                            <>Category: <span className="text-slate-700 font-medium">{pageTitle}</span></>
-                        ) : search ? (
-                            <>Search: <span className="text-slate-700 font-medium">{search}</span></>
-                        ) : (
-                            <>All <span className="text-slate-700 font-medium">Products</span></>
-                        )}
-                    </h1>
+            <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
+                {/* Back Navigation */}
+                {(search || category) && (
+                    <button 
+                        onClick={() => router.push('/shop')}
+                        className="flex items-center gap-2 text-gray-700 hover:text-black mb-6 transition-colors"
+                    >
+                        <MoveLeftIcon size={20} />
+                        <span>Back</span>
+                    </button>
+                )}
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6 mb-32">
-                        {filteredProducts.length > 0 ? (
-                            filteredProducts.map((product, idx) => (
-                                <ProductCard key={product._id || product.id || idx} product={product} />
-                            ))
-                        ) : (
-                            <div className="col-span-full text-center py-12">
-                                <p className="text-gray-500 text-lg">No products found</p>
-                                <button 
-                                    onClick={() => router.push('/shop')}
-                                    className="mt-4 px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-                                >
-                                    View All Products
-                                </button>
-                            </div>
-                        )}
+                <div className="flex gap-6">
+                    {/* Filter Sidebar - Hidden on mobile */}
+                    <div className="hidden lg:block lg:w-64 flex-shrink-0">
+                        <ProductFilterSidebar
+                            onFilterChange={handleFilterChange}
+                            selectedFilters={activeFilters}
+                        />
+                    </div>
+
+                    {/* Products Section */}
+                    <div className="flex-1">
+                        <h1 className="text-3xl font-bold mb-8 text-gray-900">
+                            {category ? (
+                                <>Category: <span className="text-slate-700">{pageTitle}</span></>
+                            ) : search ? (
+                                <>Search: <span className="text-slate-700">{search}</span></>
+                            ) : (
+                                <>All <span className="text-slate-700">Products</span></>
+                            )}
+                        </h1>
+
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6 mb-32">
+                            {filteredProducts.length > 0 ? (
+                                filteredProducts.map((product, idx) => (
+                                    <ProductCard key={product._id || product.id || idx} product={product} />
+                                ))
+                            ) : (
+                                <div className="col-span-full text-center py-12">
+                                    <p className="text-gray-500 text-lg">No products found</p>
+                                    <button 
+                                        onClick={() => router.push('/shop')}
+                                        className="mt-4 px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+                                    >
+                                        View All Products
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
