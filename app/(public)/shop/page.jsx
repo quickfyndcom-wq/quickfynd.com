@@ -93,8 +93,8 @@ import { useSelector } from "react-redux"
     };
 
     return (
-        <div className="min-h-[70vh]">
-            <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
+        <div className="min-h-[70vh] bg-white">
+            <div className="max-w-[1250px] mx-auto px-4 py-6">
                 {/* Back Navigation */}
                 {(search || category) && (
                     <button 
@@ -106,9 +106,9 @@ import { useSelector } from "react-redux"
                     </button>
                 )}
 
-                <div className="flex gap-6">
+                <div className="flex gap-8">
                     {/* Filter Sidebar - Hidden on mobile */}
-                    <div className="hidden lg:block lg:w-64 flex-shrink-0">
+                    <div className="hidden lg:block w-64 flex-shrink-0">
                         <ProductFilterSidebar
                             onFilterChange={handleFilterChange}
                             selectedFilters={activeFilters}
@@ -116,7 +116,7 @@ import { useSelector } from "react-redux"
                     </div>
 
                     {/* Products Section */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                         <h1 className="text-3xl font-bold mb-8 text-gray-900">
                             {category ? (
                                 <>Category: <span className="text-slate-700">{pageTitle}</span></>
@@ -127,7 +127,7 @@ import { useSelector } from "react-redux"
                             )}
                         </h1>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6 mb-32">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6 mb-32">
                             {filteredProducts.length > 0 ? (
                                 filteredProducts.map((product, idx) => (
                                     <ProductCard key={product._id || product.id || idx} product={product} />
