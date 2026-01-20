@@ -13,11 +13,27 @@ export default function CarouselSlider() {
   const scrollRef = useRef(null);
   const containerRef = useRef(null);
   const [showNextArrow, setShowNextArrow] = useState(false);
+  const [showPrevArrow, setShowPrevArrow] = useState(false);
 
   const scrollNext = () => {
     if (scrollRef.current) {
-      const scrollAmount = 232; // width of one product card (220px) + gap (12px)
+      const scrollAmount = 232;
       scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  const scrollPrev = () => {
+    if (scrollRef.current) {
+      const scrollAmount = 232;
+      scrollRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  const checkScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setShowPrevArrow(scrollLeft > 0);
+      setShowNextArrow(scrollLeft < scrollWidth - clientWidth - 10);
     }
   };
 
@@ -48,6 +64,17 @@ export default function CarouselSlider() {
       }
     }
     fetchCarouselProducts();
+  }, []);
+
+  /* Check scroll position on mount and after scroll */
+  useEffect(() => {
+    const slider = scrollRef.current;
+    if (!slider) return;
+    
+    checkScroll();
+    slider.addEventListener('scroll', checkScroll);
+    
+    return () => slider.removeEventListener('scroll', checkScroll);
   }, []);
 
   /* ---------------- DRAG TO SCROLL ---------------- */
@@ -283,6 +310,25 @@ export default function CarouselSlider() {
                       e.currentTarget.style.transform = 'translateY(0)';
                     }}
                   >
+                    {/* Next Day Delivery Badge */}
+                    {product.nextDayDelivery && (
+                      <span style={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 8,
+                        zIndex: 20,
+                        background: '#ff6b35',
+                        color: '#fff',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        Next Day
+                      </span>
+                    )}
+
                     {/* Product Image */}
                     <div style={{
                       width: '100%',
@@ -364,6 +410,40 @@ export default function CarouselSlider() {
               </div>
             )}
           </div>
+
+          {/* Left Arrow Button */}
+          {showPrevArrow && (
+            <button
+              className="prev-arrow-button"
+              onClick={scrollPrev}
+              style={{
+                position: 'absolute',
+                left: -30,
+                top: '45%',
+                transform: 'translateY(-50%)',
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                backgroundColor: '#fff',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                zIndex: 10,
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+              }}
+            >
+              <ChevronRight size={20} color="#666" strokeWidth={2.5} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+          )}
 
           {/* Next Arrow Button */}
           {showNextArrow && (

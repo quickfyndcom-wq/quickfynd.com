@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import ProductCard from "@/components/ProductCard"
 import { MoveLeftIcon } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -12,6 +12,8 @@ import { useSelector } from "react-redux"
     const category = searchParams.get('category');
     const router = useRouter();
     const products = useSelector(state => state.product.list);
+    const [activeFilters, setActiveFilters] = useState({});
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
     // Debug: Log AI keyword and product names
     useEffect(() => {
@@ -87,26 +89,9 @@ import { useSelector } from "react-redux"
 
     return (
         <div className="min-h-[70vh]">
-            <div className="max-w-7xl mx-auto flex gap-4 px-4 lg:px-6">
-                {/* Filter Sidebar */}
-                <div className="hidden lg:block">
-                    <FilterSidebar 
-                        products={products} 
-                        onFilterChange={(filters) => setActiveFilters(filters)}
-                    />
-                </div>
-
-                {/* Mobile Filter Modal */}
-                <MobileFilterModal
-                    isOpen={isMobileFilterOpen}
-                    onClose={() => setIsMobileFilterOpen(false)}
-                    products={products}
-                    currentFilters={activeFilters}
-                    onApplyFilters={(filters) => setActiveFilters(filters)}
-                />
-
+            <div className="max-w-7xl mx-auto px-4 lg:px-6">
                 {/* Products Grid */}
-                <div className="flex-1">
+                <div className="w-full">
                     <h1 onClick={() => router.push('/shop')} className="text-2xl text-slate-500 my-6 flex items-center gap-2 cursor-pointer"> 
                         {(search || category) && <MoveLeftIcon size={20} />}  
                         {category ? (
@@ -117,16 +102,6 @@ import { useSelector } from "react-redux"
                             <>All <span className="text-slate-700 font-medium">Products</span></>
                         )}
                     </h1>
-                    
-                    {/* Mobile Filter Button */}
-                    <div className="lg:hidden mb-4">
-                        <button 
-                            onClick={() => setIsMobileFilterOpen(true)}
-                            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
-                        >
-                            Filters & Sort
-                        </button>
-                    </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6 mb-32">
                         {filteredProducts.length > 0 ? (
