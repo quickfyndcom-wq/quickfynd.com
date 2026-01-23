@@ -13,7 +13,10 @@ export default function StoreProvider({ children }) {
 
   // Rehydrate cart from localStorage on mount
   React.useEffect(() => {
-    storeRef.current.dispatch({ type: 'cart/rehydrateCart' });
+    if (typeof window !== 'undefined') {
+      console.log('[StoreProvider] Initializing cart from localStorage');
+      storeRef.current.dispatch({ type: 'cart/rehydrateCart' });
+    }
   }, []);
 
   return <Provider store={storeRef.current}>{children}</Provider>

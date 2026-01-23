@@ -29,6 +29,9 @@ export async function GET(request) {
         const userId = decodedToken.uid;
         const storeId = await authSeller(userId);
 
+        console.log('[customers API] Authenticated user:', userId);
+        console.log('[customers API] Store ID:', storeId);
+
         // Get all orders for this store
         const orders = await Order.find({ storeId })
             .populate({
@@ -41,6 +44,8 @@ export async function GET(request) {
             })
             .sort({ createdAt: -1 })
             .lean();
+
+        console.log('[customers API] Total orders found:', orders.length);
 
         // Group orders by customer and calculate statistics
         const customerMap = new Map();
@@ -77,6 +82,7 @@ export async function GET(request) {
 
             if (!customerMap.has(customerId)) {
                 customerMap.set(customerId, {
+                    _id: customerId, // Add _id field for use in send-notification
                     id: customerId,
                     name,
                     email,
@@ -120,6 +126,8 @@ export async function GET(request) {
 
         // Convert map to array and sort by total spent (descending)
         const customers = Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
+
+        console.log('[customers API] Customers found:', customers.length);
 
         return NextResponse.json({ customers });
     } catch (error) {

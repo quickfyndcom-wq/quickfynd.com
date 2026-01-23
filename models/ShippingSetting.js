@@ -17,6 +17,7 @@ const ShippingSettingSchema = new mongoose.Schema({
   estimatedDays: { type: String, default: "3-5" },
   enableCOD: { type: Boolean, default: true },
   codFee: { type: Number, default: 0 },
+  maxCODAmount: { type: Number, default: 0 },
   enableExpressShipping: { type: Boolean, default: false },
   expressShippingFee: { type: Number, default: 20 },
   expressEstimatedDays: { type: String, default: "1-2" },

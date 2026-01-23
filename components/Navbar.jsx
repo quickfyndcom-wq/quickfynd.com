@@ -264,7 +264,7 @@ const Navbar = () => {
     <>
       {/* Mobile-Only Simple Navbar for Non-Home Pages */}
       {!isHomePage && (
-        <nav className="lg:hidden sticky top-0 z-50 shadow-sm" style={{ backgroundColor: '#2874f0' }}>
+        <nav className="lg:hidden sticky top-0 z-50 shadow-sm bg-white">
           <div className="flex items-center gap-3 px-4 py-3">
             {/* Back Button */}
             <button 
@@ -531,7 +531,7 @@ const Navbar = () => {
                 )}
                 {/* User Dropdown */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 top-12 min-w-[200px] bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-2">
+                  <div className="absolute right-0 top-12 min-w-[220px] bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-2">
                     <Link
                       href="/dashboard/profile"
                       className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition text-sm"
@@ -544,7 +544,14 @@ const Navbar = () => {
                       className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition text-sm"
                       onClick={() => setUserDropdownOpen(false)}
                     >
-                      My Orders
+                      Orders
+                    </Link>
+                    <Link
+                      href="/dashboard/wishlist"
+                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setUserDropdownOpen(false)}
+                    >
+                      Wishlist
                     </Link>
                     <Link
                       href="/browse-history"
@@ -552,6 +559,34 @@ const Navbar = () => {
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       Browse History
+                    </Link>
+                    <Link
+                      href="/dashboard/tickets"
+                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setUserDropdownOpen(false)}
+                    >
+                      Support Tickets
+                    </Link>
+                    <Link
+                      href="/dashboard/addresses"
+                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setUserDropdownOpen(false)}
+                    >
+                      Addresses
+                    </Link>
+                    <Link
+                      href="/dashboard/settings"
+                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setUserDropdownOpen(false)}
+                    >
+                      Account Settings
+                    </Link>
+                    <Link
+                      href="/help"
+                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setUserDropdownOpen(false)}
+                    >
+                      Help & Support
                     </Link>
                     <div className="my-1 border-t border-gray-200" />
                     <button
@@ -766,17 +801,6 @@ const Navbar = () => {
                     >
                       <span>Browse History</span>
                     </Link>
-                    <button
-                      className="w-full text-left px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg transition text-red-600 font-medium mt-2"
-                      onClick={async () => {
-                        await auth.signOut();
-                        setMobileMenuOpen(false);
-                        toast.success('Signed out successfully');
-                        window.location.reload();
-                      }}
-                    >
-                      Sign Out
-                    </button>
                     <div className="px-4"><div className="h-px bg-gray-200 my-2" /></div>
                   </>
                 )}
@@ -846,14 +870,6 @@ const Navbar = () => {
                     </span>
                   )}
                 </Link>
-                <Link 
-                  href="/dashboard/orders" 
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-100 rounded-lg transition text-gray-700 font-medium"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <PackageIcon size={18} className="text-gray-600" />
-                  <span>My Orders</span>
-                </Link>
                 {isSeller && (
                   <Link 
                     href="/store" 
@@ -904,6 +920,8 @@ const Navbar = () => {
                 >
                   Return Policy
                 </Link>
+                
+                {/* Sign Out Button - At Bottom */}
                 {firebaseUser && (
                   <button
                     className="w-full text-left px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg transition text-red-600 font-medium mt-4"

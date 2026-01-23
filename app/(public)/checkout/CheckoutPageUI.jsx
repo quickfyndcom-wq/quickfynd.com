@@ -93,6 +93,13 @@ export default function CheckoutPage() {
     }
   }, [user, getToken, dispatch]);
 
+  // Check if Razorpay is already loaded (in case script loaded before state update)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      setRazorpayLoaded(true);
+    }
+  }, []);
+
   // Auto-select first address
   useEffect(() => {
     if (user && addressList.length > 0 && !form.addressId) {
@@ -234,13 +241,18 @@ export default function CheckoutPage() {
 
   // Razorpay Payment Handler
   const handleRazorpayPayment = async (paymentPayload) => {
-    if (!razorpayLoaded) {
-      setFormError("Payment system is loading. Please wait...");
+    // Check if Razorpay is available (script might have loaded but state not updated)
+    if (typeof window !== 'undefined' && window.Razorpay && !razorpayLoaded) {
+      setRazorpayLoaded(true);
+    }
+
+    if (!razorpayLoaded && !window.Razorpay) {
+      setFormError("Payment system is still loading. Please wait a moment and try again.");
       return false;
     }
 
     if (!window.Razorpay) {
-      setFormError("Payment system failed to load. Please refresh and try again.");
+      setFormError("Payment system failed to load. Please refresh the page and try again.");
       setPlacingOrder(false);
       return false;
     }
@@ -679,7 +691,14 @@ export default function CheckoutPage() {
           <Script 
             src="https://checkout.razorpay.com/v1/checkout.js" 
             strategy="afterInteractive"
-            onLoad={() => setRazorpayLoaded(true)}
+            onLoad={() => {
+              console.log('Razorpay script loaded successfully');
+              setRazorpayLoaded(true);
+            }}
+            onError={(e) => {
+              console.error('Failed to load Razorpay script:', e);
+              setFormError('Payment system failed to load. Please check your internet connection and refresh.');
+            }}
           />
         </>
       );
@@ -794,38 +813,75 @@ export default function CheckoutPage() {
                 </div>
               )}
               {addressList.length > 0 && !showAddressModal && !addressFetchError ? (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-gray-900">{addressList[0].name}</div>
-                    <div className="text-blue-700 text-sm">{addressList[0].district || addressList[0].city}</div>
-                    <div className="text-gray-800 text-sm">{addressList[0].street}</div>
-                    <div className="text-gray-800 text-sm">{addressList[0].city}, {addressList[0].state}, {addressList[0].country}</div>
-                    <div className="text-orange-500 text-sm font-semibold">{addressList[0].phoneCode || '+91'} {addressList[0].phone}</div>
-                    <div className="flex flex-col gap-1 mt-2 text-xs text-gray-700">
-                      <span>Total: <span className="font-bold">₹ {subtotal.toLocaleString()}</span></span>
-                      <span className="text-gray-500">Delivery charge: <span className="font-bold">₹ {shipping.toLocaleString()}</span></span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 ml-4">
-                    <button type="button" className="text-blue-600 text-xs font-semibold hover:underline" onClick={() => {
-                      setEditingAddressId(addressList[0]._id);
-                      setShowAddressModal(true);
-                    }}>
-                      Edit address
-                    </button>
-                    <button type="button" className="text-blue-600 text-xs font-semibold hover:underline" onClick={() => {
+                <div className="space-y-3 mb-6">
+                  {addressList.map((address) => {
+                    const isSelected = form.addressId === address._id;
+                    return (
+                      <div 
+                        key={address._id}
+                        className={`border-2 rounded-lg p-4 flex justify-between items-start cursor-pointer transition ${
+                          isSelected 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : 'border-gray-200 bg-white hover:border-blue-300'
+                        }`}
+                        onClick={() => setForm(f => ({ ...f, addressId: address._id }))}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                              isSelected ? 'border-blue-500' : 'border-gray-300'
+                            }`}>
+                              {isSelected && <div className="w-3 h-3 rounded-full bg-blue-500"></div>}
+                            </div>
+                            <div className="font-bold text-gray-900">{address.name}</div>
+                          </div>
+                          <div className="ml-7">
+                            <div className="text-gray-800 text-sm">{address.street}</div>
+                            <div className="text-gray-700 text-sm">{address.city}, {address.district || ''} {address.state}</div>
+                            <div className="text-gray-700 text-sm">{address.country} {address.zip ? `- ${address.zip}` : ''}</div>
+                            <div className="text-orange-600 text-sm font-semibold mt-1">{address.phoneCode || '+91'} {address.phone}</div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2 ml-4">
+                          <button 
+                            type="button" 
+                            className="text-blue-600 text-xs font-semibold hover:underline whitespace-nowrap" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingAddressId(address._id);
+                              setShowAddressModal(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            type="button" 
+                            className="text-red-600 text-xs font-semibold hover:underline whitespace-nowrap" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAddress(address._id);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button 
+                    type="button" 
+                    className="w-full border-2 border-dashed border-blue-400 rounded-lg p-4 text-blue-600 font-semibold hover:bg-blue-50 transition flex items-center justify-center gap-2"
+                    onClick={() => {
                       setEditingAddressId(null);
                       setShowAddressModal(true);
-                    }}>
-                      Add new address
-                    </button>
-                    <button 
-                      type="button" 
-                      className="text-red-600 text-xs font-semibold hover:underline" 
-                      onClick={() => handleDeleteAddress(addressList[0]._id)}
-                    >
-                      Delete address
-                    </button>
+                    }}
+                  >
+                    <span className="text-xl">+</span> Add New Address
+                  </button>
+                  <div className="flex flex-col gap-1 mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded">
+                    <span>Subtotal: <span className="font-bold">₹ {subtotal.toLocaleString()}</span></span>
+                    <span>Delivery charge: <span className="font-bold">₹ {shipping.toLocaleString()}</span></span>
+                    <span className="text-lg font-bold text-gray-900 mt-1">Total: ₹ {total.toLocaleString()}</span>
                   </div>
                 </div>
               ) : (
@@ -997,24 +1053,53 @@ export default function CheckoutPage() {
                 </label>
 
                 {/* Cash on Delivery Option */}
-                <label className="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all hover:border-green-400 hover:bg-green-50/30 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="cod"
-                    checked={form.payment === 'cod'}
-                    onChange={handleChange}
-                    className="accent-green-600 w-5 h-5 mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
-                      </svg>
-                      <span className="font-semibold text-gray-900">Cash on Delivery</span>
-                    </div>
-                  </div>
-                </label>
+                {(() => {
+                  // Get maxCODAmount with proper default
+                  const maxCODAmount = shippingSetting?.maxCODAmount || 0;
+                  
+                  // Check if COD is available
+                  const isCODDisabled = shippingSetting?.enableCOD === false || 
+                    (maxCODAmount > 0 && subtotal > maxCODAmount);
+                  
+                  // Debug log
+                  console.log('COD Check:', {
+                    subtotal,
+                    maxCODAmount,
+                    enableCOD: shippingSetting?.enableCOD,
+                    shippingSetting: JSON.stringify(shippingSetting),
+                    isCODDisabled,
+                    comparison: maxCODAmount > 0 ? subtotal > maxCODAmount : false
+                  });
+                  
+                  return (
+                    <label className={`flex items-start gap-3 p-4 border-2 rounded-lg transition-all ${
+                      isCODDisabled 
+                        ? 'opacity-50 cursor-not-allowed border-gray-300 bg-gray-50' 
+                        : 'cursor-pointer hover:border-green-400 hover:bg-green-50/30 has-[:checked]:border-green-500 has-[:checked]:bg-green-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="cod"
+                        checked={form.payment === 'cod' && !isCODDisabled}
+                        onChange={handleChange}
+                        disabled={isCODDisabled}
+                        className="accent-green-600 w-5 h-5 mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                          </svg>
+                          <span className="font-semibold text-gray-900">Cash on Delivery</span>
+                        </div>
+                        {isCODDisabled && maxCODAmount > 0 && subtotal > maxCODAmount && (
+                          <p className="text-xs text-red-600 mt-1">Not available for orders above ₹{maxCODAmount}</p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })()}
               </div>
               {!user && (
                 <div className="mt-3 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">

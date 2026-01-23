@@ -38,23 +38,23 @@ let result = allProducts;
   }, []);
 
   return (
-    <div className="w-full flex justify-center px-4 mt-8 ">
-      <div className="w-full max-w-[1250px] flex gap-6">
+    <div className="w-full flex justify-center px-3 sm:px-4 mt-6 sm:mt-8">
+      <div className="w-full max-w-[1250px] flex flex-col lg:flex-row gap-4 lg:gap-6">
 
         {/* LEFT GRID PRODUCTS */}
-        <div className="flex-1">
-          <h2 className="text-lg sm:text-[28px] font-semibold mb-3 sm:mb-5">Top Deals</h2>
+        <div className="flex-1 w-full">
+          <h2 className="text-base sm:text-lg md:text-[28px] font-semibold mb-4 sm:mb-5">Top Deals</h2>
 
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
               {[...Array(10)].map((_, index) => (
                 <div
                   key={`skeleton-${index}`}
-                  className="cursor-pointer text-center"
+                  className="cursor-pointer text-center flex flex-col items-center"
                 >
                   {/* Skeleton Image */}
                   <div
-                    className="w-[80px] h-[70px] sm:w-[150px] sm:h-[140px] mx-auto rounded-md"
+                    className="w-full aspect-square rounded-md"
                     style={{
                       background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
                       backgroundSize: '200% 100%',
@@ -63,7 +63,7 @@ let result = allProducts;
                   />
                   {/* Skeleton Title */}
                   <div
-                    className="h-3 sm:h-4 mx-auto mt-1 sm:mt-2 rounded"
+                    className="h-2 sm:h-3 mx-auto mt-2 sm:mt-3 rounded"
                     style={{
                       width: '80%',
                       background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
@@ -73,9 +73,9 @@ let result = allProducts;
                   />
                   {/* Skeleton Price */}
                   <div
-                    className="h-3 sm:h-4 mx-auto mt-0.5 sm:mt-1 rounded"
+                    className="h-2 sm:h-3 mx-auto mt-1.5 sm:mt-2 rounded"
                     style={{
-                      width: '50%',
+                      width: '60%',
                       background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
                       backgroundSize: '200% 100%',
                       animation: 'shimmer 1.5s infinite',
@@ -85,11 +85,10 @@ let result = allProducts;
               ))}
             </div>
           ) : products.length === 0 ? (
-            <p className="text-gray-500 py-5 text-center">No Deals Found</p>
+            <p className="text-gray-500 py-8 text-center text-sm sm:text-base">No Deals Found</p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-6">
-
-{products?.slice(0, 10).map((item, i) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
+              {products?.slice(0, 10).map((item, i) => {
                 const img =
                   item.images?.[0] && item.images[0] !== ""
                     ? item.images[0]
@@ -99,18 +98,20 @@ let result = allProducts;
                   <a
                     key={i}
                     href={`/product/${item.slug}`}
-                    className="cursor-pointer text-center block"
+                    className="cursor-pointer text-center block group flex flex-col items-center"
                   >
-                    <img
-                      src={img}
-                      alt={item.name}
-                      className="w-[80px] h-[70px] sm:w-[150px] sm:h-[140px] mx-auto object-contain hover:scale-105 transition-all duration-200"
-                      onError={e => { e.currentTarget.src = "https://ik.imagekit.io/jrstupuke/placeholder.png"; }}
-                    />
-                    <p className="text-[10px] sm:text-[15px] font-medium mt-1 sm:mt-2 truncate">
+                    <div className="w-full aspect-square bg-gray-50 rounded-md overflow-hidden flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                      <img
+                        src={img}
+                        alt={item.name}
+                        className="h-full w-full object-contain p-2 sm:p-3 group-hover:scale-110 transition-transform duration-200"
+                        onError={e => { e.currentTarget.src = "https://ik.imagekit.io/jrstupuke/placeholder.png"; }}
+                      />
+                    </div>
+                    <p className="text-[11px] sm:text-[13px] md:text-[15px] font-medium mt-2 sm:mt-2.5 line-clamp-2 w-full px-1">
                       {item.name}
                     </p>
-                    <p className="font-bold text-[9px] sm:text-[16px] mt-0.5 sm:mt-1">
+                    <p className="font-bold text-[10px] sm:text-[12px] md:text-[16px] mt-1 sm:mt-1.5 text-orange-600">
                       From ₹{item.price}
                     </p>
                   </a>
@@ -120,10 +121,10 @@ let result = allProducts;
           )}
         </div>
 
-        {/* RIGHT FIXED BANNER */}
-        <div className="w-[300px] hidden md:block">
+        {/* RIGHT FIXED BANNER - HIDDEN ON MOBILE */}
+        <div className="w-full sm:w-[250px] md:w-[300px] hidden lg:block">
           <Image
-            src={Dummy}   // <--- Replace with banner
+            src={Dummy}
             alt="Offer Banner"
             className="w-full rounded-lg shadow"
           />

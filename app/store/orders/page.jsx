@@ -760,24 +760,32 @@ export default function StoreOrders() {
                                         {/* Delhivery Live Status */}
                                         {selectedOrder.delhivery && (
                                             <div className="border-t border-slate-200 mt-4 pt-4">
-                                                <p className="text-xs font-semibold text-slate-600 mb-3 text-center">📦 Live Delhivery Status</p>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                                    {selectedOrder.delhivery.current_status && (
-                                                        <div className="bg-blue-50 p-2 rounded">
-                                                            <p className="text-xs text-slate-600">Current Status</p>
-                                                            <p className="font-semibold text-blue-700">{selectedOrder.delhivery.current_status}</p>
-                                                        </div>
-                                                    )}
+                                                <p className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                                                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                                    📍 Live Delhivery Tracking
+                                                </p>
+                                                <div className="space-y-3">
+                                                    {/* Current Location - Most Important */}
                                                     {selectedOrder.delhivery.current_status_location && (
-                                                        <div className="bg-green-50 p-2 rounded">
-                                                            <p className="text-xs text-slate-600">Last Location</p>
-                                                            <p className="font-semibold text-green-700">{selectedOrder.delhivery.current_status_location}</p>
+                                                        <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-4 rounded-lg text-white shadow-lg border-l-4 border-green-700">
+                                                            <p className="text-xs font-semibold opacity-90">📍 Current Location</p>
+                                                            <p className="font-bold text-lg mt-1">{selectedOrder.delhivery.current_status_location}</p>
                                                         </div>
                                                     )}
+
+                                                    {/* Current Status */}
+                                                    {selectedOrder.delhivery.current_status && (
+                                                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+                                                            <p className="text-xs text-slate-600 font-semibold">Status</p>
+                                                            <p className="font-bold text-blue-700 mt-1 text-lg">{selectedOrder.delhivery.current_status}</p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Expected Delivery */}
                                                     {selectedOrder.delhivery.expected_delivery_date && (
-                                                        <div className="bg-purple-50 p-2 rounded col-span-1 md:col-span-2">
-                                                            <p className="text-xs text-slate-600">Expected Delivery</p>
-                                                            <p className="font-semibold text-purple-700">{new Date(selectedOrder.delhivery.expected_delivery_date).toLocaleDateString()}</p>
+                                                        <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg">
+                                                            <p className="text-xs text-slate-600 font-semibold">Expected Delivery</p>
+                                                            <p className="font-bold text-purple-700 mt-1">{new Date(selectedOrder.delhivery.expected_delivery_date).toLocaleDateString()} {new Date(selectedOrder.delhivery.expected_delivery_date).toLocaleTimeString()}</p>
                                                         </div>
                                                     )}
                                                 </div>
@@ -785,14 +793,28 @@ export default function StoreOrders() {
                                                 {/* Recent Events Timeline */}
                                                 {selectedOrder.delhivery.events && selectedOrder.delhivery.events.length > 0 && (
                                                     <div className="border-t border-slate-200 mt-4 pt-4">
-                                                        <p className="text-xs font-semibold text-slate-600 mb-3">Recent Updates</p>
-                                                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                                                            {selectedOrder.delhivery.events.slice(0, 5).map((event, idx) => (
-                                                                <div key={idx} className="text-xs border-l-2 border-blue-300 pl-3 py-1">
-                                                                    <div className="font-semibold text-slate-800">{event.status || event.location || 'Update'}</div>
-                                                                    <div className="text-slate-600">{event.location || event.status}</div>
-                                                                    <div className="text-slate-500 text-xs">{new Date(event.time).toLocaleString()}</div>
-                                                                    {event.remarks && <div className="text-slate-500 italic mt-1">{event.remarks}</div>}
+                                                        <p className="text-xs font-semibold text-slate-600 mb-3 flex items-center gap-2">
+                                                            <span>📦</span> Tracking History
+                                                        </p>
+                                                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                            {selectedOrder.delhivery.events.map((event, idx) => (
+                                                                <div key={idx} className="border-l-3 border-blue-400 pl-3 py-2 bg-slate-50 rounded-r p-2">
+                                                                    <div className="flex justify-between items-start gap-2">
+                                                                        <div className="flex-1">
+                                                                            {event.location && (
+                                                                                <div className="font-semibold text-slate-900 text-sm">📍 {event.location}</div>
+                                                                            )}
+                                                                            {event.status && (
+                                                                                <div className="font-medium text-blue-700 text-sm mt-0.5">{event.status}</div>
+                                                                            )}
+                                                                            {event.remarks && (
+                                                                                <div className="text-slate-600 text-xs mt-1 italic">{event.remarks}</div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-xs text-slate-500 whitespace-nowrap">
+                                                                            {new Date(event.time).toLocaleString()}
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -998,7 +1020,7 @@ export default function StoreOrders() {
                                     <div className="w-1 h-5 bg-purple-600 rounded-full"></div>
                                     Payment & Status
                                 </h3>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-4">
                                     <div>
                                         <p className="text-slate-500">Total Amount</p>
                                         <p className="text-xl font-bold text-slate-900">{currency}{selectedOrder.total}</p>
@@ -1018,12 +1040,48 @@ export default function StoreOrders() {
                                         </div>
                                     )}
                                     <div>
-                                        <p className="text-slate-500">Order Status</p>
-                                        <p className="font-medium text-slate-900">{selectedOrder.status}</p>
-                                    </div>
-                                    <div>
                                         <p className="text-slate-500">Order Date</p>
                                         <p className="font-medium text-slate-900">{new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+
+                                {/* Order Status Selector */}
+                                <div className="border-t border-slate-200 pt-4">
+                                    <label className="text-slate-600 font-semibold block mb-2 text-sm">Update Order Status</label>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={selectedOrder.status}
+                                            onChange={async (e) => {
+                                                const newStatus = e.target.value;
+                                                try {
+                                                    const token = await getToken(true);
+                                                    if (!token) {
+                                                        toast.error('Authentication failed. Please sign in again.');
+                                                        return;
+                                                    }
+                                                    await axios.post('/api/store/orders/update-status', {
+                                                        orderId: selectedOrder._id,
+                                                        status: newStatus
+                                                    }, {
+                                                        headers: { Authorization: `Bearer ${token}` }
+                                                    });
+                                                    toast.success('Order status updated!');
+                                                    setSelectedOrder({...selectedOrder, status: newStatus});
+                                                    fetchOrders();
+                                                } catch (error) {
+                                                    console.error('Update status error:', error);
+                                                    toast.error(error?.response?.data?.error || 'Failed to update status');
+                                                }
+                                            }}
+                                            className={`flex-1 border-slate-300 rounded-lg text-sm font-medium px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none transition ${getStatusColor(selectedOrder.status)}`}
+                                        >
+                                            {STATUS_OPTIONS.map(status => (
+                                                <option key={status.value} value={status.value}>{status.label}</option>
+                                            ))}
+                                        </select>
+                                        <span className={`px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap flex items-center ${getStatusColor(selectedOrder.status)}`}>
+                                            {selectedOrder.status}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

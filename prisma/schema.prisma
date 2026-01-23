@@ -376,6 +376,7 @@ model ShippingSetting {
   // Additional Options
   enableCOD Boolean @default(true)
   codFee    Float   @default(0) // Extra fee for COD
+  maxCODAmount Float @default(0) // Max order amount for COD (0 = unlimited)
 
   // Express/Priority Shipping
   enableExpressShipping Boolean @default(false)

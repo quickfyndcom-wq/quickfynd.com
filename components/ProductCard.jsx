@@ -114,7 +114,10 @@ const ProductCard = ({ product }) => {
     const handleAddToCart = (e) => {
         e.preventDefault()
         e.stopPropagation()
-        dispatch(addToCart({ productId: product._id }))
+        dispatch(addToCart({ 
+            productId: product._id,
+            price: priceNum > 0 ? priceNum : undefined
+        }))
         dispatch(uploadCart({ getToken }))
         toast.success('Added to cart')
     }

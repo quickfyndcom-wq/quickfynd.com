@@ -13,6 +13,9 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get('storeId');
     
+    console.log('=== SHIPPING API GET ===');
+    console.log('Requested storeId:', storeId);
+    
     let setting;
     if (storeId) {
       setting = await ShippingSetting.findOne({ storeId }).lean();
@@ -20,6 +23,9 @@ export async function GET(request) {
       // Fallback: get the first store's settings (for backward compatibility)
       setting = await ShippingSetting.findOne({}).lean();
     }
+    
+    console.log('Retrieved setting - maxCODAmount:', setting?.maxCODAmount, 'codFee:', setting?.codFee);
+    console.log('Full setting:', JSON.stringify(setting));
     
     return NextResponse.json({
       setting: setting || {
@@ -38,6 +44,7 @@ export async function GET(request) {
         estimatedDays: "3-5",
         enableCOD: true,
         codFee: 0,
+        maxCODAmount: 0,
         enableExpressShipping: false,
         expressShippingFee: 0,
         expressEstimatedDays: "1-2"
@@ -81,6 +88,12 @@ export async function PUT(request) {
     if (!storeId) return NextResponse.json({ error: "not authorized" }, { status: 401 });
 
     const body = await request.json();
+    
+    console.log('=== SHIPPING API PUT ===');
+    console.log('Received body.maxCODAmount:', body.maxCODAmount, 'Type:', typeof body.maxCODAmount);
+    console.log('Received body.codFee:', body.codFee, 'Type:', typeof body.codFee);
+    console.log('Received body.enableCOD:', body.enableCOD);
+    
     const data = {
       storeId,  // Associate settings with the seller's store
       enabled: Boolean(body.enabled ?? true),
@@ -105,11 +118,14 @@ export async function PUT(request) {
       // COD
       enableCOD: Boolean(body.enableCOD ?? true),
       codFee: Number(body.codFee ?? 0),
+      maxCODAmount: Number(body.maxCODAmount ?? 0),
       // Express
       enableExpressShipping: Boolean(body.enableExpressShipping ?? false),
       expressShippingFee: Number(body.expressShippingFee ?? 20),
       expressEstimatedDays: body.expressEstimatedDays || "1-2"
     };
+    
+    console.log('Data to save - maxCODAmount:', data.maxCODAmount, 'codFee:', data.codFee);
 
     await dbConnect();
     const setting = await ShippingSetting.findOneAndUpdate(
@@ -117,6 +133,7 @@ export async function PUT(request) {
       data,
       { upsert: true, new: true }
     );
+    console.log('Saved setting - maxCODAmount:', setting.maxCODAmount, 'codFee:', setting.codFee);
     return NextResponse.json({ setting });
   } catch (e) {
     console.error(e);

@@ -36,9 +36,16 @@ export async function POST(request) {
         }
 
         // Validate status
-        const validStatuses = ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+        const validStatuses = [
+            'ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 
+            'PAYMENT_FAILED', 'RETURNED', 'RETURN_INITIATED', 'RETURN_APPROVED',
+            'RETURN_REQUESTED', 'PICKUP_REQUESTED', 'WAITING_FOR_PICKUP', 
+            'PICKED_UP', 'WAREHOUSE_RECEIVED', 'OUT_FOR_DELIVERY',
+            // Lowercase variants for compatibility
+            'pending', 'processing', 'shipped', 'delivered', 'cancelled'
+        ];
         if (!validStatuses.includes(status)) {
-            return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+            return NextResponse.json({ error: `Invalid status. Allowed statuses: ${validStatuses.join(', ')}` }, { status: 400 });
         }
 
         // Connect to database

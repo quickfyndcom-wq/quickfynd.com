@@ -70,54 +70,36 @@ const Video = Node.create({
 export const dynamic = 'force-dynamic'
 
 export default function ProductForm({ product = null, onClose, onSubmitSuccess }) {
-    const router = useRouter()
-    const [dbCategories, setDbCategories] = useState([])
-    const [selectedCategories, setSelectedCategories] = useState([])
-    const [isFormInitialized, setIsFormInitialized] = useState(false)
-    // ...existing code...
-    const [productInfo, setProductInfo] = useState({
-        name: "",
-        slug: "",
-        brand: "",
-        shortDescription: "",
-        description: "",
-        mrp: "",
-        price: "",
-        sku: "",
-        stockQuantity: 0,
-        colors: [],
-        sizes: [],
-        fastDelivery: false,
-        allowReturn: true,
-        allowReplacement: true,
-        reviews: [],
-        badges: [],
-        imageAspectRatio: '1:1',
-        category: product?.category?._id || product?.category || "",
-        tags: [],
-        ...(product || {})
-    });
-    //
-    const colorOptions = ['Red', 'Blue', 'Green', 'Black', 'White', 'Yellow', 'Purple']
-    const sizeOptions = ['S', 'M', 'L', 'XL', 'XXL']
-    const aspectRatioOptions = ['1:1', '4:5', '3:4', '16:9']
+        // MISSING STATE HOOKS (add these at the top of ProductForm)
+        const [dbCategories, setDbCategories] = useState([]);
+        const [selectedCategories, setSelectedCategories] = useState([]);
+        const [isFormInitialized, setIsFormInitialized] = useState(false);
+        const [bulkEnabled, setBulkEnabled] = useState(false);
+        const [variants, setVariants] = useState([]);
+        const [images, setImages] = useState({ "1": null, "2": null, "3": null, "4": null, "5": null, "6": null, "7": null, "8": null });
+        const [productInfo, setProductInfo] = useState({
+            name: '', slug: '', brand: '', shortDescription: '', description: '', mrp: '', price: '', category: '', sku: '', stockQuantity: 0, colors: [], sizes: [], fastDelivery: false, allowReturn: true, allowReplacement: true, reviews: [], badges: [], imageAspectRatio: '1:1', tags: []
+        });
+        const [tagInput, setTagInput] = useState('');
+        const [loading, setLoading] = useState(false);
+        const [reviewInput, setReviewInput] = useState({ name: '', rating: 5, comment: '', image: null });
+        const aspectRatioOptions = ['1:1', '4:5', '3:4', '16:9'];
+        const [hasVariants, setHasVariants] = useState(false);
+        const [bulkOptions, setBulkOptions] = useState([]);
+    const router = useRouter();
+    // ...existing state declarations...
 
-    const [images, setImages] = useState({ "1": null, "2": null, "3": null, "4": null, "5": null, "6": null, "7": null, "8": null })
-    // Variants state
-    const [hasVariants, setHasVariants] = useState(false)
-    const [variants, setVariants] = useState([]) // { options: {color, size[, bundleQty]}, price, mrp, stock, sku?, tag? }
-    // Bulk bundle variant helper state (UI sugar over variants JSON)
-    const [bulkEnabled, setBulkEnabled] = useState(false)
-    const [bulkOptions, setBulkOptions] = useState([
-        { title: 'Buy 1', qty: 1, price: '', mrp: '', stock: 0, tag: '' },
-        { title: 'Bundle of 2', qty: 2, price: '', mrp: '', stock: 0, tag: 'MOST_POPULAR' },
-        { title: 'Bundle of 3', qty: 3, price: '', mrp: '', stock: 0, tag: '' },
-    ])
-    const [reviewInput, setReviewInput] = useState({ name: "", rating: 5, comment: "", image: null })
-    const [loading, setLoading] = useState(false)
-    const [tagInput, setTagInput] = useState('')
+    // UI stepper state
+    const [step, setStep] = useState(1);
+    const steps = [
+        { label: 'Product Information' },
+        { label: 'Pricing' },
+        { label: 'Description & Tags' },
+        { label: 'Features & Options' },
+        { label: 'Images & Variants' },
+    ];
 
-    // FBT (Frequently Bought Together) state
+    // ...existing state declarations...
     const [enableFBT, setEnableFBT] = useState(false)
     const [selectedFbtProducts, setSelectedFbtProducts] = useState([])
     const [availableProducts, setAvailableProducts] = useState([])
@@ -181,26 +163,19 @@ export default function ProductForm({ product = null, onClose, onSubmitSuccess }
                     setFbtBundleDiscount(data.bundleDiscount || '');
                     if (data.products && data.products.length > 0) {
                         setSelectedFbtProducts(data.products);
-                    } else {
-                        setSelectedFbtProducts([]);
                     }
                 } catch (error) {
-                    console.error('Error fetching FBT config:', error);
+                    setEnableFBT(false);
+                    setFbtBundlePrice('');
+                    setFbtBundleDiscount('');
+                    setSelectedFbtProducts([]);
                 } finally {
                     setLoadingFbt(false);
                 }
             };
             fetchFbtConfig();
-        } else {
-            // Reset FBT state for new products
-            setEnableFBT(false);
-            setSelectedFbtProducts([]);
-            setFbtBundlePrice('');
-            setFbtBundleDiscount('');
         }
     }, [product?._id]);
-
-    // Tiptap editor for description
     const editor = useEditor({
         extensions: [
             StarterKit,
@@ -543,57 +518,55 @@ export default function ProductForm({ product = null, onClose, onSubmitSuccess }
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-50 via-pink-50 to-yellow-50 p-4 overflow-y-auto">
             <div className="w-full max-w-4xl my-8">
-                <form onSubmit={onSubmitHandler} className="bg-white p-6 rounded shadow-lg space-y-4 max-h-[calc(100vh-4rem)] overflow-y-auto">
-                    <h2 className="text-xl font-semibold sticky top-0 bg-white py-2 border-b mb-4">{product ? "Edit Product" : "Add New Product"}</h2>
+                <form onSubmit={onSubmitHandler} className="bg-white/90 p-8 rounded-2xl shadow-2xl space-y-8 max-h-[calc(100vh-4rem)] overflow-y-auto border-4 border-blue-100">
+                    <h2 className="text-3xl font-bold sticky top-0 bg-gradient-to-r from-blue-100 via-pink-100 to-yellow-100 py-4 border-b-2 border-blue-200 mb-6 rounded-t-2xl text-center tracking-wide text-blue-700 shadow">{product ? "Edit Product" : "Add New Product"}</h2>
 
                 {/* Basic Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50/60 rounded-xl p-6 shadow mb-6 border border-blue-100">
+                  <h3 className="text-lg font-semibold text-blue-700 mb-4 flex items-center gap-2"><span className="inline-block w-2 h-2 bg-blue-400 rounded-full"></span> Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium mb-1">Product Name</label>
-                        <input name="name" value={productInfo.name} onChange={onChangeHandler} className="w-full border rounded px-3 py-2" placeholder="Enter product name" />
+                        <label className="block text-sm font-medium mb-1 text-blue-800">Product Name</label>
+                        <input name="name" value={productInfo.name} onChange={onChangeHandler} className="w-full border-2 border-blue-200 rounded px-3 py-2 focus:ring-2 focus:ring-blue-300" placeholder="Enter product name" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">Product Slug <span className="text-xs text-green-600">(auto-generated from name)</span></label>
+                        <label className="block text-sm font-medium mb-1 text-blue-800">Product Slug <span className="text-xs text-green-600">(auto-generated from name)</span></label>
                         <input 
                             name="slug" 
                             value={productInfo.slug} 
                             readOnly 
-                            className="w-full border rounded px-3 py-2 bg-gray-50 text-gray-600 cursor-not-allowed" 
+                            className="w-full border-2 border-blue-100 rounded px-3 py-2 bg-gray-50 text-gray-600 cursor-not-allowed" 
                             placeholder="Auto-generated from product name" 
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">Brand</label>
-                        <input name="brand" value={productInfo.brand} onChange={onChangeHandler} className="w-full border rounded px-3 py-2" placeholder="Brand (optional)" />
+                        <label className="block text-sm font-medium mb-1 text-blue-800">Brand</label>
+                        <input name="brand" value={productInfo.brand} onChange={onChangeHandler} className="w-full border-2 border-blue-100 rounded px-3 py-2" placeholder="Brand (optional)" />
                     </div>
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium mb-2">Categories (Select Multiple)</label>
-                        <div className="border rounded px-3 py-3 bg-white max-h-48 overflow-y-auto space-y-2">
+                        <label className="block text-sm font-medium mb-2 text-blue-800">Categories (Select Multiple)</label>
+                        <div className="border-2 border-blue-100 rounded px-3 py-3 bg-white max-h-48 overflow-y-auto space-y-2">
                             {dbCategories.length === 0 ? (
                                 <p className="text-sm text-gray-500">No categories available</p>
                             ) : (
                                 dbCategories.map(cat => (
-                                    <label key={cat._id} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded transition">
+                                    <label key={cat._id} className="flex items-center gap-3 cursor-pointer hover:bg-blue-50 p-2 rounded transition">
                                         <input
                                             type="checkbox"
                                             checked={selectedCategories.includes(cat._id)}
                                             onChange={(e) => {
-                                                console.log(`Category ${cat.name} (${cat._id}) checkbox changed:`, e.target.checked)
                                                 if (e.target.checked) {
-                                                    const newCategories = [...selectedCategories, cat._id]
-                                                    console.log('Adding category. New selectedCategories:', newCategories)
-                                                    setSelectedCategories(newCategories)
+                                                    setSelectedCategories([...selectedCategories, cat._id])
                                                 } else {
-                                                    const newCategories = selectedCategories.filter(id => id !== cat._id)
-                                                    console.log('Removing category. New selectedCategories:', newCategories)
-                                                    setSelectedCategories(newCategories)
+                                                    setSelectedCategories(selectedCategories.filter(id => id !== cat._id))
                                                 }
                                             }}
-                                            className="w-4 h-4 rounded cursor-pointer"
+                                            className="w-4 h-4 rounded cursor-pointer accent-blue-500"
                                         />
-                                        <span className="text-sm font-medium">{cat.name}</span>
+                                        <span className="text-sm font-medium text-blue-700">{cat.name}</span>
                                     </label>
                                 ))
                             )}
@@ -603,12 +576,12 @@ export default function ProductForm({ product = null, onClose, onSubmitSuccess }
                                 {selectedCategories.map(catId => {
                                     const cat = dbCategories.find(c => c._id === catId)
                                     return cat ? (
-                                        <span key={catId} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        <span key={catId} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-200 text-blue-900 border border-blue-400">
                                             {cat.name}
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedCategories(prev => prev.filter(id => id !== catId))}
-                                                className="ml-1 text-blue-600 hover:text-blue-900 font-bold"
+                                                className="ml-1 text-blue-700 hover:text-blue-900 font-bold"
                                             >
                                                 ×
                                             </button>
@@ -619,168 +592,36 @@ export default function ProductForm({ product = null, onClose, onSubmitSuccess }
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">SKU</label>
-                        <input name="sku" value={productInfo.sku || ""} onChange={onChangeHandler} className="w-full border rounded px-3 py-2" placeholder="Stock Keeping Unit (optional)" />
+                        <label className="block text-sm font-medium mb-1 text-blue-800">SKU</label>
+                        <input name="sku" value={productInfo.sku || ""} onChange={onChangeHandler} className="w-full border-2 border-blue-100 rounded px-3 py-2" placeholder="Stock Keeping Unit (optional)" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">Stock Quantity</label>
+                        <label className="block text-sm font-medium mb-1 text-blue-800">Stock Quantity</label>
                         <input 
                             type="number" 
                             name="stockQuantity" 
                             value={productInfo.stockQuantity || 0} 
                             onChange={onChangeHandler} 
-                            className="w-full border rounded px-3 py-2" 
+                            className="w-full border-2 border-blue-100 rounded px-3 py-2" 
                             placeholder="Available stock quantity" 
                             min="0"
                         />
                     </div>
                     <div className="flex flex-col gap-3 mt-6 md:col-span-2">
                         <label className="inline-flex items-center gap-2">
-                            <input type="checkbox" checked={productInfo.fastDelivery} onChange={(e)=> setProductInfo(p=>({...p, fastDelivery: e.target.checked}))} />
-                            <span className="text-sm font-medium">Fast Delivery</span>
+                            <input type="checkbox" checked={productInfo.fastDelivery} onChange={(e)=> setProductInfo(p=>({...p, fastDelivery: e.target.checked}))} className="accent-green-500" />
+                            <span className="text-sm font-medium text-green-700">Fast Delivery</span>
                         </label>
                         <label className="inline-flex items-center gap-2">
-                            <input type="checkbox" checked={productInfo.allowReturn} onChange={(e)=> setProductInfo(p=>({...p, allowReturn: e.target.checked}))} />
-                            <span className="text-sm font-medium">Allow Return (7 days after delivery)</span>
+                            <input type="checkbox" checked={productInfo.allowReturn} onChange={(e)=> setProductInfo(p=>({...p, allowReturn: e.target.checked}))} className="accent-purple-500" />
+                            <span className="text-sm font-medium text-purple-700">Allow Return (7 days after delivery)</span>
                         </label>
                         <label className="inline-flex items-center gap-2">
-                            <input type="checkbox" checked={productInfo.allowReplacement} onChange={(e)=> setProductInfo(p=>({...p, allowReplacement: e.target.checked}))} />
-                            <span className="text-sm font-medium">Allow Replacement (7 days after delivery)</span>
+                            <input type="checkbox" checked={productInfo.allowReplacement} onChange={(e)=> setProductInfo(p=>({...p, allowReplacement: e.target.checked}))} className="accent-pink-500" />
+                            <span className="text-sm font-medium text-pink-700">Allow Replacement (7 days after delivery)</span>
                         </label>
                     </div>
-
-                    {/* Frequently Bought Together Section */}
-                    <div className="md:col-span-2 border-t pt-6 mt-4">
-                        <label className="inline-flex items-center gap-2 mb-4">
-                            <input 
-                                type="checkbox" 
-                                checked={enableFBT} 
-                                onChange={(e) => setEnableFBT(e.target.checked)} 
-                                className="w-4 h-4"
-                            />
-                            <span className="text-base font-semibold">Enable Frequently Bought Together</span>
-                        </label>
-
-                        {enableFBT && (
-                            <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">Select Products for Bundle</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Search products to add..."
-                                        value={searchFbt}
-                                        onChange={(e) => setSearchFbt(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-
-                                    {searchFbt && (
-                                        <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white">
-                                            {availableProducts
-                                                .filter(p => 
-                                                    p._id !== product?._id &&
-                                                    !selectedFbtProducts.find(sp => sp._id === p._id) &&
-                                                    (p.name.toLowerCase().includes(searchFbt.toLowerCase()) ||
-                                                     p.sku?.toLowerCase().includes(searchFbt.toLowerCase()))
-                                                )
-                                                .slice(0, 5)
-                                                .map(p => (
-                                                    <div
-                                                        key={p._id}
-                                                        onClick={() => {
-                                                            if (selectedFbtProducts.length < 4) {
-                                                                setSelectedFbtProducts([...selectedFbtProducts, p]);
-                                                                setSearchFbt('');
-                                                            } else {
-                                                                toast.error('Maximum 4 products allowed');
-                                                            }
-                                                        }}
-                                                        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 border-b last:border-b-0"
-                                                    >
-                                                        <div className="w-10 h-10 relative flex-shrink-0">
-                                                            <Image
-                                                                src={p.images?.[0] || 'https://ik.imagekit.io/jrstupuke/placeholder.png'}
-                                                                alt={p.name}
-                                                                fill
-                                                                className="object-cover rounded"
-                                                            />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                                                            <p className="text-xs text-gray-500">₹{p.price}</p>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            }
-                                        </div>
-                                    )}
-
-                                    <div className="mt-3 space-y-2">
-                                        {selectedFbtProducts.map(p => (
-                                            <div key={p._id} className="flex items-center gap-3 p-3 bg-white border border-green-200 rounded-lg">
-                                                <div className="w-12 h-12 relative flex-shrink-0">
-                                                    <Image
-                                                        src={p.images?.[0] || 'https://ik.imagekit.io/jrstupuke/placeholder.png'}
-                                                        alt={p.name}
-                                                        fill
-                                                        className="object-cover rounded"
-                                                    />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                                                    <p className="text-xs text-gray-600">₹{p.price}</p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedFbtProducts(selectedFbtProducts.filter(sp => sp._id !== p._id))}
-                                                    className="text-red-500 hover:text-red-700 text-sm font-semibold"
-                                                >
-                                                    Remove
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {selectedFbtProducts.length === 0 && (
-                                        <p className="text-sm text-gray-500 italic mt-2">No products selected. Search and click to add.</p>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Bundle Price (Optional)</label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={fbtBundlePrice}
-                                                onChange={(e) => setFbtBundlePrice(e.target.value)}
-                                                placeholder="Auto-calculated"
-                                                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">Fixed bundle price</p>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Bundle Discount (Optional)</label>
-                                        <div className="relative">
-                                            <input
-                                                type="number"
-                                                step="0.1"
-                                                value={fbtBundleDiscount}
-                                                onChange={(e) => setFbtBundleDiscount(e.target.value)}
-                                                placeholder="0"
-                                                className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">Percentage discount</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                  </div>
                 </div>
 
                 {/* Pricing */}
@@ -1249,5 +1090,5 @@ export default function ProductForm({ product = null, onClose, onSubmitSuccess }
                 </form>
             </div>
         </div>
-    )
+    );
 }

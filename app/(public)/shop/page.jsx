@@ -11,6 +11,7 @@ function ShopContent() {
     const category = searchParams.get('category');
     const router = useRouter();
     const products = useSelector(state => state.product.list);
+    const loading = useSelector(state => state.product.loading);
     
     const [activeFilters, setActiveFilters] = useState({
         categories: [],
@@ -52,18 +53,55 @@ function ShopContent() {
 
             // Category matching (from URL param)
             if (category) {
-                const productCategory = product.category?.toLowerCase() || '';
+                // Get all category values (single category field + categories array)
+                const productCategories = [
+                    product.category,
+                    ...(Array.isArray(product.categories) ? product.categories : [])
+                ].filter(Boolean);
+                
+                // If no categories at all, skip this product
+                if (productCategories.length === 0) {
+                    return false;
+                }
+                
                 const categorySlug = category.toLowerCase();
-                const productCategorySlug = productCategory.replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-                const productCategoryWords = productCategory.replace(/[^\w\s]/g, '').split(/\s+/);
-                const searchWords = categorySlug.split('-');
-                const exactMatch = productCategorySlug === categorySlug;
-                const containsAllWords = searchWords.every(word => 
-                    productCategoryWords.some(catWord => catWord.includes(word) || word.includes(catWord))
-                );
-                const partialMatch = productCategory.includes(categorySlug.replace(/-/g, ' ')) || 
-                                     categorySlug.replace(/-/g, ' ').includes(productCategory);
-                if (!exactMatch && !containsAllWords && !partialMatch) {
+                const normalizedSearchCat = categorySlug.replace(/-/g, ' ').replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+                const searchWords = normalizedSearchCat.split(' ').filter(w => w.length > 0);
+                
+                // Check if ANY of the product's categories match
+                const hasMatchingCategory = productCategories.some(prodCat => {
+                    const productCategory = prodCat.toLowerCase();
+                    const normalizedProductCat = productCategory.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+                    const productCategorySlug = productCategory.replace(/[^\w\s]/g, '').replace(/\s+/g, '-').toLowerCase();
+                    const productWords = normalizedProductCat.split(' ').filter(w => w.length > 0);
+                    
+                    // Multiple matching strategies
+                    const exactMatch = productCategorySlug === categorySlug;
+                    const normalizedMatch = normalizedProductCat === normalizedSearchCat;
+                    const containsMatch = normalizedProductCat.includes(normalizedSearchCat) || 
+                                         normalizedSearchCat.includes(normalizedProductCat);
+                    
+                    // Check if all search words appear in product category
+                    const allWordsMatch = searchWords.length > 0 && searchWords.every(searchWord => 
+                        productWords.some(productWord => 
+                            productWord.includes(searchWord) || 
+                            searchWord.includes(productWord) ||
+                            productWord === searchWord
+                        )
+                    );
+                    
+                    // Check if at least half of the words match
+                    const partialWordsMatch = searchWords.length > 1 && 
+                        searchWords.filter(searchWord => 
+                            productWords.some(productWord => 
+                                productWord.includes(searchWord) || searchWord.includes(productWord)
+                            )
+                        ).length >= Math.ceil(searchWords.length / 2);
+                    
+                    return exactMatch || normalizedMatch || containsMatch || allWordsMatch || partialWordsMatch;
+                });
+                
+                if (!hasMatchingCategory) {
                     return false;
                 }
             }
@@ -167,7 +205,12 @@ function ShopContent() {
 
                     {/* Products Grid */}
                     <div className="flex-1">
-                        {filteredAndSortedProducts.length === 0 ? (
+                        {loading || products.length === 0 ? (
+                            <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
+                                <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+                                <p className="text-gray-500 text-lg">Loading products...</p>
+                            </div>
+                        ) : filteredAndSortedProducts.length === 0 ? (
                             <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
                                 <p className="text-gray-500 text-lg">No products match your filters.</p>
                                 <button 

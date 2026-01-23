@@ -30,6 +30,7 @@ export default function StoreShippingSettings() {
     estimatedDays: '3-5',
     enableCOD: true,
     codFee: 0,
+    maxCODAmount: 0,
     enableExpressShipping: false,
     expressShippingFee: 20,
     expressEstimatedDays: '1-2'
@@ -59,6 +60,7 @@ export default function StoreShippingSettings() {
             estimatedDays: data.setting.estimatedDays || '3-5',
             enableCOD: Boolean(data.setting.enableCOD),
             codFee: Number(data.setting.codFee || 0),
+            maxCODAmount: Number(data.setting.maxCODAmount || 0),
             enableExpressShipping: Boolean(data.setting.enableExpressShipping),
             expressShippingFee: Number(data.setting.expressShippingFee || 20),
             expressEstimatedDays: data.setting.expressEstimatedDays || '1-2'
@@ -77,10 +79,13 @@ export default function StoreShippingSettings() {
   const onSave = async () => {
     try {
       setSaving(true)
+      console.log('Saving form with maxCODAmount:', form.maxCODAmount, 'Full form:', form)
       const token = await getToken()
-      await axios.put('/api/shipping', form, { headers: { Authorization: `Bearer ${token}` } })
+      const response = await axios.put('/api/shipping', form, { headers: { Authorization: `Bearer ${token}` } })
+      console.log('Server response:', response.data)
       toast.success('Shipping settings saved')
     } catch (e) {
+      console.error('Save error:', e?.response?.data || e.message)
       toast.error(e?.response?.data?.error || e.message)
     } finally {
       setSaving(false)
@@ -296,15 +301,35 @@ export default function StoreShippingSettings() {
                 <span className='text-slate-700'>Enable COD payment method</span>
               </label>
               {form.enableCOD && (
-                <div>
-                  <label className='block text-sm font-medium text-slate-700 mb-2'>COD Processing Fee</label>
-                  <div className='flex items-center gap-2'>
-                    <span className='text-slate-600'>{currency}</span>
-                    <input type='number' step='0.01' value={form.codFee}
-                      onChange={(e) => setForm(s => ({ ...s, codFee: Number(e.target.value) }))}
-                      className='w-40 border border-slate-300 rounded px-3 py-2' />
+                <div className='space-y-4'>
+                  <div>
+                    <label className='block text-sm font-medium text-slate-700 mb-2'>COD Processing Fee</label>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-slate-600'>{currency}</span>
+                      <input type='number' step='0.01' value={form.codFee}
+                        onChange={(e) => setForm(s => ({ ...s, codFee: Number(e.target.value) }))}
+                        className='w-40 border border-slate-300 rounded px-3 py-2' />
+                    </div>
+                    <p className='text-xs text-slate-500 mt-2'>Additional fee for COD orders (use 0 for no fee)</p>
                   </div>
-                  <p className='text-xs text-slate-500 mt-2'>Additional fee for COD orders (use 0 for no fee)</p>
+                  <div>
+                    <label className='block text-sm font-medium text-slate-700 mb-2'>Maximum COD Amount</label>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-slate-600'>{currency}</span>
+                      <input type='number' step='0.01' value={form.maxCODAmount || ''}
+                        onChange={(e) => {
+                          const value = Number(e.target.value) || 0;
+                          console.log('MaxCODAmount input changed:', e.target.value, '-> Number:', value);
+                          setForm(s => {
+                            const newState = { ...s, maxCODAmount: value };
+                            console.log('New form state:', newState);
+                            return newState;
+                          });
+                        }}
+                        className='w-40 border border-slate-300 rounded px-3 py-2' />
+                    </div>
+                    <p className='text-xs text-slate-500 mt-2'>Max order total for COD (use 0 for unlimited)</p>
+                  </div>
                 </div>
               )}
             </div>

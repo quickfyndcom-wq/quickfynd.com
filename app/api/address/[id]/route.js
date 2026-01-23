@@ -19,7 +19,7 @@ export async function DELETE(req, { params }) {
     const decoded = await auth.verifyIdToken(token)
     const userId = decoded.uid
 
-    const { id } = params
+    const { id } = await params
 
     // Find and delete address, ensuring it belongs to the authenticated user
     const address = await Address.findOneAndDelete({ _id: id, userId })
@@ -45,7 +45,7 @@ export async function PUT(req, { params }) {
     const decoded = await auth.verifyIdToken(token)
     const userId = decoded.uid
 
-    const { id } = params
+    const { id } = await params
     const body = await req.json()
 
     // Update address, ensuring it belongs to the authenticated user
