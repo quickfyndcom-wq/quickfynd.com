@@ -62,18 +62,28 @@ export async function POST(request) {
 
     // Also approve the Store for this user if it exists
     if (invite.storeId) {
-      await Store.findByIdAndUpdate(
-        invite.storeId,
-        { status: "approved" },
-        { new: true }
-      );
+      const existingStore = await Store.findById(invite.storeId);
+      if (existingStore) {
+        // Update existing store status
+        await Store.findByIdAndUpdate(
+          invite.storeId,
+          { status: "approved" },
+          { new: true }
+        );
+      } else {
+        // Create store if it doesn't exist
+        await Store.create({
+          _id: invite.storeId,
+          userId,
+          status: "approved",
+          storeName: `Store`,
+        });
+      }
     }
 
     return NextResponse.json({
-      message: updated.status === "approved"
-        ? "Invitation accepted. You now have access to the store."
-        : "Invitation accepted. Waiting for approval.",
-      status: updated.status,
+      message: "Invitation accepted. You now have access to the store.",
+      status: "approved",
     });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
