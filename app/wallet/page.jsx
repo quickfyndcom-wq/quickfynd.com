@@ -14,13 +14,21 @@ export default function WalletPage() {
       if (!user || !getToken) return;
       try {
         setFetching(true);
-        const token = await getToken();
+        const token = await getToken(true);
+        if (!token) {
+          setError("Please sign in to view your wallet.");
+          return;
+        }
         const res = await fetch("/api/wallet", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         if (!res.ok) {
-          setError(data?.error || "Failed to load wallet.");
+          if (res.status === 401) {
+            setError("Please sign in to view your wallet.");
+          } else {
+            setError(data?.error || "Failed to load wallet.");
+          }
           return;
         }
         setWallet({
@@ -29,7 +37,7 @@ export default function WalletPage() {
           transactions: data.transactions || [],
         });
       } catch (e) {
-        setError(e?.message || "Failed to load wallet.");
+        setError("Failed to load wallet. Please try again.");
       } finally {
         setFetching(false);
       }
@@ -69,7 +77,11 @@ export default function WalletPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Transactions</h2>
           {fetching && <div className="text-slate-500 text-sm">Loading...</div>}
-          {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
+          {error && (
+            <div className="text-red-600 text-sm mb-3">
+              {error}
+            </div>
+          )}
           {!fetching && wallet.transactions.length === 0 && (
             <div className="text-slate-500 text-sm">No wallet activity yet.</div>
           )}
