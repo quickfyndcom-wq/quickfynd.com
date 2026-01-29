@@ -1,6 +1,7 @@
 import connectDB from '@/lib/mongodb';
 import User from '@/models/User';
 import Store from '@/models/Store';
+import StoreUser from '@/models/StoreUser';
 
 const authSeller = async (userId) => {
     try {
@@ -10,15 +11,32 @@ const authSeller = async (userId) => {
         }
         await connectDB();
         
-        // Look for store directly by userId (Firebase UID)
-        const store = await Store.findOne({ userId: userId }).lean();
-        console.log('[authSeller] Store found:', store ? `Yes (${store._id})` : 'No');
-        console.log('[authSeller] Store status:', store?.status);
+        // First check: User owns a store
+        const ownedStore = await Store.findOne({ userId: userId }).lean();
+        console.log('[authSeller] Owned store found:', ownedStore ? `Yes (${ownedStore._id})` : 'No');
+        console.log('[authSeller] Owned store status:', ownedStore?.status);
         
-        if (store && store.status === 'approved') {
-            return store._id.toString();
+        if (ownedStore && ownedStore.status === 'approved') {
+            console.log('[authSeller] User owns approved store:', ownedStore._id);
+            return ownedStore._id.toString();
         }
         
+        // Second check: User is a team member with access to another's store
+        const teamMembership = await StoreUser.findOne({
+            userId: userId,
+            status: { $in: ['approved', 'pending'] }
+        }).lean();
+        
+        if (teamMembership) {
+            console.log('[authSeller] Found team membership:', teamMembership.storeId);
+            const store = await Store.findById(teamMembership.storeId).lean();
+            if (store && store.status === 'approved') {
+                console.log('[authSeller] User has access to approved store via team membership:', store._id);
+                return store._id.toString();
+            }
+        }
+        
+        console.log('[authSeller] User has no seller access');
         return false;
     } catch (error) {
         console.log('[authSeller] Error:', error);

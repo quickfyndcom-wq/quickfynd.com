@@ -60,25 +60,12 @@ export async function POST(request) {
       return NextResponse.json({ error: "Failed to accept invitation" }, { status: 400 });
     }
 
-    // Also approve the Store for this user if it exists
+    // Note: DO NOT create a new Store for invited user
+    // The invited user should be a team member accessing the owner's store
+    // The StoreUser document above already links them to the storeId
     if (invite.storeId) {
       const existingStore = await Store.findById(invite.storeId);
-      if (existingStore) {
-        // Update existing store status
-        await Store.findByIdAndUpdate(
-          invite.storeId,
-          { status: "approved" },
-          { new: true }
-        );
-      } else {
-        // Create store if it doesn't exist
-        await Store.create({
-          _id: invite.storeId,
-          userId,
-          status: "approved",
-          storeName: `Store`,
-        });
-      }
+      console.log('[accept-invite] Store for storeId:', existingStore ? 'Found' : 'Not found');
     }
 
     return NextResponse.json({
