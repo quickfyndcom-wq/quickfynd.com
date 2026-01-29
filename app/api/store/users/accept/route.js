@@ -52,7 +52,7 @@ export async function POST(request) {
     const updated = await StoreUser.findOneAndUpdate(
       { inviteToken: token },
       {
-        status: invite.status === "approved" ? "approved" : "pending",
+        status: "approved",
         userId,
         inviteToken: null,
         inviteExpiry: null,

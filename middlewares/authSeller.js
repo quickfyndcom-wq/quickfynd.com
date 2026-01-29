@@ -22,11 +22,31 @@ const authSeller = async (userId) => {
         }
         
         // Second check: User is a team member with access to another's store
-        const teamMembership = await StoreUser.findOne({
+        let teamMembership = await StoreUser.findOne({
             userId: userId,
             status: { $in: ['approved', 'pending'] }
         }).lean();
-        
+
+        // Fallback: match by email if userId wasn't linked yet
+        if (!teamMembership) {
+            const userProfile = await User.findById(userId).lean();
+            const userEmail = userProfile?.email?.toLowerCase();
+            if (userEmail) {
+                teamMembership = await StoreUser.findOne({
+                    email: userEmail,
+                    status: { $in: ['invited', 'pending', 'approved'] }
+                }).lean();
+
+                if (teamMembership && !teamMembership.userId) {
+                    await StoreUser.findByIdAndUpdate(teamMembership._id, {
+                        userId: userId,
+                        status: 'approved'
+                    });
+                    console.log('[authSeller] Linked team membership by email:', teamMembership.storeId);
+                }
+            }
+        }
+
         if (teamMembership) {
             console.log('[authSeller] Found team membership:', teamMembership.storeId);
             const store = await Store.findById(teamMembership.storeId).lean();
