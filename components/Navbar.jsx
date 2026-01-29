@@ -67,6 +67,12 @@ const Navbar = () => {
   const [signOutContext, setSignOutContext] = useState('desktop');
   const [walletCoins, setWalletCoins] = useState(0);
 
+  const getShortName = (value) => {
+    const name = (value || '').trim();
+    if (!name) return '';
+    return name.length > 6 ? `${name.slice(0, 6)}..` : name;
+  };
+
   // Show sign-in modal automatically on mobile for guest users
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024 && !firebaseUser) {
@@ -650,7 +656,7 @@ const Navbar = () => {
                     {firebaseUser.displayName?.[0]?.toUpperCase() || firebaseUser.email?.[0]?.toUpperCase() || 'U'}
                   </span>
                 )}
-                <span className="font-medium text-gray-700 text-sm">Hi, {firebaseUser.displayName || firebaseUser.email}</span>
+                <span className="font-medium text-gray-700 text-sm">Hi, {getShortName(firebaseUser.displayName || firebaseUser.email)}</span>
                 {/* Dashboard button for seller */}
                 {isSeller && (
                   <button
@@ -900,7 +906,7 @@ const Navbar = () => {
                       {firebaseUser.displayName?.[0]?.toUpperCase() || firebaseUser.email?.[0]?.toUpperCase() || 'U'}
                     </span>
                   )}
-                  <span className="font-medium">Hi, {firebaseUser.displayName || firebaseUser.email}</span>
+                  <span className="font-medium">Hi, {getShortName(firebaseUser.displayName || firebaseUser.email)}</span>
                 </div>
               )}
 
