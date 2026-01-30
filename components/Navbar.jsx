@@ -1,6 +1,6 @@
 "use client";
 
-import { PackageIcon, Search, ShoppingCart, LifeBuoy, Menu, X, HeartIcon, StarIcon, ArrowLeft, LogOut } from "lucide-react";
+import { PackageIcon, Search, ShoppingCart, LifeBuoy, Menu, X, HeartIcon, StarIcon, ArrowLeft, LogOut, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
@@ -730,9 +730,13 @@ const Navbar = () => {
                   setSignInMode('login');
                   setSignInOpen(true);
                 }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 transition text-white text-sm font-medium rounded-full"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 transition text-white text-xs font-medium rounded-full flex items-center gap-2"
               >
-                Login
+                <User className="w-5 h-5" />
+                <div className="flex flex-col leading-tight text-left">
+                  <span>Login /</span>
+                  <span>Sign Up</span>
+                </div>
               </button>
             )}
 
@@ -877,13 +881,17 @@ const Navbar = () => {
               {firebaseUser === undefined ? null : !firebaseUser ? (
                 <button
                   type="button"
-                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition mb-4"
+                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition mb-4 flex items-center justify-center gap-2"
                   onClick={() => {
                     setSignInOpen(true);
                     setMobileMenuOpen(false);
                   }}
                 >
-                  Login
+                  <User className="w-5 h-5" />
+                  <div className="flex flex-col leading-tight text-left">
+                    <span>Login /</span>
+                    <span>Sign Up</span>
+                  </div>
                 </button>
               ) : (
                 <div className="w-full px-4 py-3 bg-blue-50 text-blue-700 text-sm font-semibold rounded-full mb-4 flex items-center gap-2">
