@@ -70,19 +70,92 @@ export default function CheckoutPage() {
   // Wallet / Coins
   const [walletInfo, setWalletInfo] = useState({ coins: 0, rupeesValue: 0 });
   const [walletLoading, setWalletLoading] = useState(false);
-  const [redeemCoins, setRedeemCoins] = useState(0);
+  const [redeemCoins, setRedeemCoins] = useState('');
+  const [redeemError, setRedeemError] = useState('');
 
   // Coupon logic
   const [coupon, setCoupon] = useState("");
   const [couponError, setCouponError] = useState("");
-  const handleApplyCoupon = (e) => {
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [storeId, setStoreId] = useState(null);
+  
+  const handleApplyCoupon = async (e) => {
     e.preventDefault();
     if (!coupon.trim()) {
       setCouponError("Enter a coupon code to see discount.");
       return;
     }
+    
+    if (!storeId) {
+      setCouponError("Store information not loaded. Please refresh.");
+      return;
+    }
+    
+    setCouponLoading(true);
     setCouponError("");
-    // TODO: Add real coupon validation logic here
+    
+    try {
+      // Convert cartItems object to array
+      const cartItemsArray = Object.entries(cartItems || {}).map(([id, value]) => ({
+        productId: id,
+        quantity: typeof value === 'number' ? value : value?.quantity || 0,
+        variantId: typeof value === 'object' ? value?.variantId : undefined
+      }));
+      
+      // Calculate total for validation
+      const itemsTotal = cartItemsArray.reduce((sum, item) => {
+        const product = products.find((p) => p._id === item.productId);
+        if (!product) return sum;
+        const variant = product.variants?.find((v) => v._id === item.variantId);
+        const price = variant?.salePrice || variant?.price || product.salePrice || product.price || 0;
+        return sum + price * item.quantity;
+      }, 0);
+      
+      // Get current product IDs in cart
+      const cartProductIds = Object.keys(cartItems);
+      
+      console.log('Applying coupon:', coupon.toUpperCase());
+      console.log('Order total:', itemsTotal);
+      console.log('Cart products:', cartProductIds);
+      
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: coupon.toUpperCase(),
+          storeId: storeId,
+          orderTotal: itemsTotal,
+          userId: user?.uid || null,
+          cartProductIds: cartProductIds, // Send product IDs for product-specific validation
+        }),
+      });
+      
+      const data = await res.json();
+      
+      console.log('Coupon validation response:', data);
+      
+      if (res.ok && data.valid) {
+        console.log('✅ Coupon applied successfully!');
+        console.log('Discount amount:', data.coupon.discountAmount);
+        setAppliedCoupon(data.coupon);
+        setCouponError("");
+        setShowCouponModal(false);
+        setCoupon(''); // Clear input
+      } else {
+        console.error('❌ Coupon validation failed:', data.error);
+        setCouponError(data.error || "Invalid coupon code");
+        setAppliedCoupon(null);
+      }
+    } catch (error) {
+      console.error('Error applying coupon:', error);
+      setCouponError("Failed to apply coupon");
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
   };
 
   const router = useRouter();
@@ -100,13 +173,136 @@ export default function CheckoutPage() {
       dispatch(fetchAddress({ getToken }));
     }
   }, [user, getToken, dispatch]);
+  
+  // Fetch available coupons
+  useEffect(() => {
+    const fetchCoupons = async () => {
+      try {
+        console.log('=== COUPON FETCH START ===');
+        
+        // Try to fetch store info first to get storeId
+        console.log('Fetching store info...');
+        const storeRes = await fetch('/api/store-info');
+        
+        if (!storeRes.ok) {
+          console.error('Store-info API returned status:', storeRes.status);
+          const storeResText = await storeRes.text();
+          console.error('Store-info response:', storeResText.substring(0, 200));
+          return;
+        }
+        
+        let storeData;
+        try {
+          storeData = await storeRes.json();
+        } catch (parseError) {
+          console.error('Failed to parse store-info response:', parseError);
+          return;
+        }
+        
+        console.log('Store data response:', storeData);
+        
+        if (!storeData.store || !storeData.store._id) {
+          console.error('Failed to get store ID from store-info, trying debug endpoint...');
+          
+          // Fallback: try debug endpoint to see what's happening
+          const debugRes = await fetch('/api/coupons-debug');
+          if (!debugRes.ok) {
+            console.error('Coupons-debug API returned status:', debugRes.status);
+            return;
+          }
+          let debugData;
+          try {
+            debugData = await debugRes.json();
+          } catch (parseError) {
+            console.error('Failed to parse coupons-debug response:', parseError);
+            return;
+          }
+          console.log('Debug data:', debugData);
+          
+          return;
+        }
+        
+        const storeIdValue = storeData.store._id;
+        console.log('Store ID found:', storeIdValue);
+        setStoreId(storeIdValue);
+        
+        console.log('Fetching coupons for store:', storeIdValue);
+        const couponUrl = `/api/coupons?storeId=${storeIdValue}`;
+        console.log('Coupon URL:', couponUrl);
+        
+        const res = await fetch(couponUrl);
+        
+        if (!res.ok) {
+          console.error('Coupons API returned status:', res.status);
+          const resText = await res.text();
+          console.error('Coupons response:', resText.substring(0, 200));
+          setAvailableCoupons([]);
+          return;
+        }
+        
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          console.error('Failed to parse coupons response:', parseError);
+          setAvailableCoupons([]);
+          return;
+        }
+        
+        console.log('Coupons API response:', data);
+        console.log('Response status:', res.status);
+        console.log('Coupons array:', data.coupons);
+        
+        if (data.coupons && Array.isArray(data.coupons)) {
+          console.log(`Found ${data.coupons.length} coupons`);
+          
+          if (data.coupons.length > 0) {
+            console.log('Setting available coupons:', data.coupons);
+            setAvailableCoupons(data.coupons);
+          } else {
+            console.log('Coupons array is empty - calling debug endpoint to check DB');
+            // Call debug endpoint to see what coupons actually exist
+            const debugRes = await fetch('/api/coupons-debug');
+            if (debugRes.ok) {
+              const debugData = await debugRes.json();
+              console.log('=== DEBUG INFO ===');
+              console.log('Total coupons in DB:', debugData.totalCoupons);
+              console.log('Store ID from DB:', debugData.storeId);
+              console.log('Requested Store ID:', storeIdValue);
+              console.log('All coupons:', debugData.coupons);
+              console.log('Active coupons:', debugData.activeCoupons);
+              console.log('==================');
+            }
+            setAvailableCoupons([]);
+          }
+        } else {
+          console.log('No coupons array in response');
+          setAvailableCoupons([]);
+        }
+        
+        console.log('=== COUPON FETCH END ===');
+      } catch (error) {
+        console.error('Error fetching coupons:', error);
+        console.error('Error details:', error.message || error);
+        setAvailableCoupons([]);
+      }
+    };
+    
+    // Add small delay to ensure page is ready
+    const timer = setTimeout(() => {
+      fetchCoupons();
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetch wallet balance for logged-in users
   useEffect(() => {
     const loadWallet = async () => {
       if (!user || !getToken) {
         setWalletInfo({ coins: 0, rupeesValue: 0 });
-        setRedeemCoins(0);
+        setRedeemCoins('');
+        setWalletLoading(false);
         return;
       }
       try {
@@ -126,7 +322,7 @@ export default function CheckoutPage() {
       }
     };
     loadWallet();
-  }, [user, getToken]);
+  }, [user]);
 
   // Check if Razorpay is already loaded (in case script loaded before state update)
   useEffect(() => {
@@ -215,10 +411,15 @@ export default function CheckoutPage() {
   console.log('Checkout - Final Cart Array:', cartArray);
 
   const subtotal = cartArray.reduce((sum, item) => sum + (item._cartPrice ?? item.price ?? 0) * item.quantity, 0);
-  const total = subtotal + shipping;
-  const maxRedeemableCoins = Math.min(Math.floor(walletInfo.coins || 0), Math.floor(total / 0.5));
+  
+  // Calculate coupon discount
+  const couponDiscount = appliedCoupon ? Number(appliedCoupon.discountAmount.toFixed(2)) : 0;
+  const totalAfterCoupon = Math.max(0, subtotal - couponDiscount);
+  
+  const total = totalAfterCoupon + shipping;
+  const maxRedeemableCoins = Math.floor(walletInfo.coins || 0);
   const safeRedeemCoins = Math.min(Math.floor(redeemCoins || 0), maxRedeemableCoins);
-  const walletDiscount = Number((safeRedeemCoins * 0.5).toFixed(2));
+  const walletDiscount = Number((safeRedeemCoins * 1).toFixed(2));
   const totalAfterWallet = Math.max(0, Number((total - walletDiscount).toFixed(2)));
 
   // Load shipping settings - refetch on page load and when products change
@@ -432,6 +633,16 @@ export default function CheckoutPage() {
           paymentStatus: 'pending',
         };
         
+        // Add coupon data if applied
+        if (appliedCoupon && couponDiscount > 0) {
+          payload.coupon = {
+            code: appliedCoupon.code,
+            discountAmount: couponDiscount,
+            title: appliedCoupon.title,
+            description: appliedCoupon.description,
+          };
+        }
+        
         if (user) {
           const addressId = form.addressId || (addressList[0] && addressList[0]._id);
           if (addressId) {
@@ -516,6 +727,15 @@ export default function CheckoutPage() {
         };
         if (safeRedeemCoins > 0) {
           payload.coinsToRedeem = safeRedeemCoins;
+        }
+        // Add coupon data if applied
+        if (appliedCoupon && couponDiscount > 0) {
+          payload.coupon = {
+            code: appliedCoupon.code,
+            discountAmount: couponDiscount,
+            title: appliedCoupon.title,
+            description: appliedCoupon.description,
+          };
         }
         // Only add addressId if it exists
         if (addressId || (addressList[0] && addressList[0]._id)) {
@@ -776,13 +996,13 @@ export default function CheckoutPage() {
   return (
     <>
       <div className="py-10 bg-white md:pb-0 pb-32">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="max-w-[1250px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Left column: address, form, payment */}
         <div className="md:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
             {/* Cart Items Section */}
             <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2 text-gray-900">Cart Items</h2>
+              <h2 className="text-xl font-bold mb-2 text-gray-900">Your order</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {cartArray.map((item) => (
                   <div key={item._id} className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-3 gap-3">
@@ -825,7 +1045,7 @@ export default function CheckoutPage() {
               </div>
             </div>
             {/* Shipping Details Section */}
-            <form id="checkout-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <form id="checkout-form" onSubmit={handleSubmit} className="flex flex-col gap-0">
               {formError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
                   <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -857,7 +1077,7 @@ export default function CheckoutPage() {
                 </div>
               )}
               
-              <h2 className="text-xl font-bold mb-2 text-gray-900">Shipping details</h2>
+              <h2 className="text-xl font-bold mb-1 mt-3 text-gray-900">Shipping details</h2>
               {/* ...existing code for address/guest form... */}
               {/* Show address fetch error if present */}
               {addressFetchError && (
@@ -869,78 +1089,92 @@ export default function CheckoutPage() {
                   ) : addressFetchError}
                 </div>
               )}
-              {addressList.length > 0 && !showAddressModal && !addressFetchError ? (
-                <div className="space-y-3 mb-6">
-                  {addressList.map((address) => {
-                    const isSelected = form.addressId === address._id;
-                    return (
-                      <div 
-                        key={address._id}
-                        className={`border-2 rounded-lg p-4 flex justify-between items-start cursor-pointer transition ${
-                          isSelected 
-                            ? 'border-blue-500 bg-blue-50' 
-                            : 'border-gray-200 bg-white hover:border-blue-300'
-                        }`}
-                        onClick={() => setForm(f => ({ ...f, addressId: address._id }))}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                              isSelected ? 'border-blue-500' : 'border-gray-300'
-                            }`}>
-                              {isSelected && <div className="w-3 h-3 rounded-full bg-blue-500"></div>}
+              {addressList.length > 0 && !addressFetchError ? (
+                <div>
+                  {/* Shipping Address Section - Noon.com Style */}
+                  <div className="bg-white rounded-lg border border-gray-200">
+                    <div className="px-4 py-3 border-b border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-700">Address</span>
+                        <button 
+                          type="button"
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                          onClick={() => setShowAddressModal(true)}
+                        >
+                          ⇄ Switch Address
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {form.addressId && (() => {
+                      const selectedAddress = addressList.find(a => a._id === form.addressId);
+                      if (!selectedAddress) return null;
+                      return (
+                        <div 
+                          className="px-4 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => {
+                            console.log('📍 Address card clicked!');
+                            setShowAddressModal(true);
+                          }}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Location Pin Icon */}
+                            <div className="flex-shrink-0 mt-0.5">
+                              <svg className="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                              </svg>
                             </div>
-                            <div className="font-bold text-gray-900">{address.name}</div>
-                          </div>
-                          <div className="ml-7">
-                            <div className="text-gray-800 text-sm">{address.street}</div>
-                            <div className="text-gray-700 text-sm">{address.city}, {address.district || ''} {address.state}</div>
-                            <div className="text-gray-700 text-sm">{address.country} {address.zip ? `- ${address.zip}` : ''}</div>
-                            <div className="text-orange-600 text-sm font-semibold mt-1">{address.phoneCode || '+91'} {address.phone}</div>
-                            {address.alternatePhone && (
-                              <div className="text-gray-600 text-xs font-semibold">Alternate: {(address.alternatePhoneCode || address.phoneCode || '+91')} {address.alternatePhone}</div>
-                            )}
+                            
+                            {/* Address Details */}
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-gray-900 mb-1">
+                                Deliver to <span className="font-bold">{selectedAddress.name?.toUpperCase() || 'HOME'}</span>
+                              </div>
+                              <div className="text-sm text-gray-600 leading-relaxed">
+                                {selectedAddress.street}
+                                {selectedAddress.city && ` - ${selectedAddress.city}`}
+                                {selectedAddress.district && ` - ${selectedAddress.district}`}
+                                {selectedAddress.state && ` - ${selectedAddress.state}`}
+                              </div>
+                            </div>
+                            
+                            {/* Right Arrow */}
+                            <div className="flex-shrink-0">
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 ml-4">
-                          <button 
-                            type="button" 
-                            className="text-blue-600 text-xs font-semibold hover:underline whitespace-nowrap" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingAddressId(address._id);
-                              setShowAddressModal(true);
-                            }}
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            type="button" 
-                            className="text-red-600 text-xs font-semibold hover:underline whitespace-nowrap" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteAddress(address._id);
-                            }}
-                          >
-                            Delete
-                          </button>
+                      );
+                    })()}
+                    
+                    {!form.addressId && (
+                      <div 
+                        className="px-4 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => setShowAddressModal(true)}
+                      >
+                        <div className="flex items-center justify-center gap-2 text-blue-600 font-medium">
+                          <span className="text-xl">+</span>
+                          <span>Select Delivery Address</span>
                         </div>
                       </div>
-                    );
-                  })}
-                  <button 
-                    type="button" 
-                    className="w-full border-2 border-dashed border-blue-400 rounded-lg p-4 text-blue-600 font-semibold hover:bg-blue-50 transition flex items-center justify-center gap-2"
-                    onClick={() => {
-                      setEditingAddressId(null);
-                      setShowAddressModal(true);
-                    }}
-                  >
-                    <span className="text-xl">+</span> Add New Address
-                  </button>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-3 mb-4">
+              ) : (addressList.length === 0 && user) ? (
+                <button 
+                  type="button"
+                  className="w-full border-2 border-dashed border-blue-400 rounded-lg p-4 text-blue-600 font-semibold hover:bg-blue-50 transition"
+                  onClick={() => {
+                    setEditingAddressId(null);
+                    setShowAddressModal(true);
+                  }}
+                >
+                  <span className="text-xl">+</span> Add Delivery Address
+                </button>
+              ) : (!user && (
+                <div className="flex flex-col gap-3">{/* Guest form starts here */}
                   {/* ...existing code for guest/inline address form... */}
                   {/* Name */}
                   <input
@@ -1123,87 +1357,132 @@ export default function CheckoutPage() {
                     ))}
                   </select>
                 </div>
-              )}
-              <h2 className="text-xl font-bold mb-4 text-gray-900">Payment methods</h2>
-              <div className="flex flex-col gap-3">
-                {/* Credit Card / Razorpay Option */}
-                <label className="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/30 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="card"
-                    checked={form.payment === 'card'}
-                    onChange={handleChange}
-                    className="accent-blue-600 w-5 h-5 mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
-                        <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd"/>
-                      </svg>
-                      <span className="font-semibold text-gray-900">Credit Card</span>
-                      <div className="flex items-center gap-0.5 ml-auto">
-                        <Image src={Creditimage4} alt="Visa" width={30} height={18} className="object-contain"/>
-                        <Image src={Creditimage3} alt="Mastercard" width={30} height={18} className="object-contain"/>
-                        <Image src={Creditimage2} alt="Card" width={30} height={18} className="object-contain"/>
-                        <Image src={Creditimage1} alt="Card" width={30} height={18} className="object-contain"/>
-                      </div>
-                    </div>
-                  </div>
-                </label>
-
-                {/* Cash on Delivery Option */}
-                {(() => {
-                  // Get maxCODAmount with proper default
-                  const maxCODAmount = shippingSetting?.maxCODAmount || 0;
+              ))}
+              <h2 className="text-xl font-bold mb-3 mt-4 text-gray-900">Payment methods</h2>
+              
+              {/* Payment Methods - Show if wallet doesn't cover full amount */}
+              {safeRedeemCoins < total && (
+                <>
+                  {safeRedeemCoins > 0 && (
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2 px-1">
+                      Pay remaining ₹ {(total - walletDiscount).toLocaleString()} with:
+                    </h3>
+                  )}
                   
-                  // Check if COD is available
-                  const isCODDisabled = shippingSetting?.enableCOD === false || 
-                    (maxCODAmount > 0 && subtotal > maxCODAmount);
-                  
-                  // Debug log
-                  console.log('COD Check:', {
-                    subtotal,
-                    maxCODAmount,
-                    enableCOD: shippingSetting?.enableCOD,
-                    shippingSetting: JSON.stringify(shippingSetting),
-                    isCODDisabled,
-                    comparison: maxCODAmount > 0 ? subtotal > maxCODAmount : false
-                  });
-                  
-                  return (
-                    <label className={`flex items-start gap-3 p-4 border-2 rounded-lg transition-all ${
-                      isCODDisabled 
-                        ? 'opacity-50 cursor-not-allowed border-gray-300 bg-gray-50' 
-                        : 'cursor-pointer hover:border-green-400 hover:bg-green-50/30 has-[:checked]:border-green-500 has-[:checked]:bg-green-50'
-                    }`}>
+                  <div className="flex flex-col gap-2 mb-4">
+                    {/* Credit Card Option */}
+                    <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/30 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
                       <input
                         type="radio"
                         name="payment"
-                        value="cod"
-                        checked={form.payment === 'cod' && !isCODDisabled}
+                        value="card"
+                        checked={form.payment === 'card'}
                         onChange={handleChange}
-                        disabled={isCODDisabled}
-                        className="accent-green-600 w-5 h-5 mt-0.5"
+                        className="accent-blue-600 w-5 h-5"
                       />
-                      <div className="flex-1">
+                      <div className="flex-1 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                          <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
+                            <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd"/>
                           </svg>
-                          <span className="font-semibold text-gray-900">Cash on Delivery</span>
+                          <div>
+                            <span className="font-semibold text-gray-900">Credit / Debit Card</span>
+                            <div className="text-xs text-gray-600">Visa, Mastercard, Amex</div>
+                          </div>
                         </div>
-                        {isCODDisabled && maxCODAmount > 0 && subtotal > maxCODAmount && (
-                          <p className="text-xs text-red-600 mt-1">Not available for orders above ₹{maxCODAmount}</p>
-                        )}
+                        <div className="flex items-center gap-1">
+                          <Image src={Creditimage4} alt="Visa" width={24} height={16} className="object-contain"/>
+                          <Image src={Creditimage3} alt="Mastercard" width={24} height={16} className="object-contain"/>
+                          <Image src={Creditimage2} alt="Card" width={24} height={16} className="object-contain"/>
+                          <Image src={Creditimage1} alt="Card" width={24} height={16} className="object-contain"/>
+                        </div>
                       </div>
                     </label>
-                  );
-                })()}
-              </div>
+
+                    {/* Cash on Delivery Option */}
+                    {(() => {
+                      const maxCODAmount = shippingSetting?.maxCODAmount || 0;
+                      const remainingAmount = total - walletDiscount;
+                      const isCODDisabled = shippingSetting?.enableCOD === false || 
+                        (maxCODAmount > 0 && remainingAmount > maxCODAmount);
+                      
+                      return (
+                        <label className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
+                          isCODDisabled 
+                            ? 'opacity-50 cursor-not-allowed border-gray-300 bg-gray-50' 
+                            : 'cursor-pointer border-gray-200 hover:border-green-400 hover:bg-green-50/30 has-[:checked]:border-green-500 has-[:checked]:bg-green-50'
+                        }`}>
+                          <input
+                            type="radio"
+                            name="payment"
+                            value="cod"
+                            checked={form.payment === 'cod' && !isCODDisabled}
+                            onChange={handleChange}
+                            disabled={isCODDisabled}
+                            className="accent-green-600 w-5 h-5"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                              </svg>
+                              <div>
+                                <span className="font-semibold text-gray-900">Cash on Delivery</span>
+                                <div className="text-xs text-gray-600">Pay when you receive</div>
+                              </div>
+                            </div>
+                            {isCODDisabled && maxCODAmount > 0 && remainingAmount > maxCODAmount && (
+                              <span className="text-xs text-red-600 ml-8">Max limit ₹{maxCODAmount}</span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })()}
+                  </div>
+                </>
+              )}
+
+              {/* Wallet Checkbox - Optional - Now at bottom */}
+              {user && walletInfo.coins > 0 && (
+                <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={safeRedeemCoins > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setRedeemCoins(String(walletInfo.coins || 0));
+                        } else {
+                          setRedeemCoins('');
+                        }
+                      }}
+                      className="accent-green-600 w-5 h-5"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
+                        </svg>
+                        <span className="font-bold text-gray-900">Use Wallet Coins</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-lg font-bold text-green-600">₹ {((walletInfo.coins || 0) * 1).toLocaleString()}</span>
+                        <span className="text-xs text-gray-600">available</span>
+                      </div>
+                      {safeRedeemCoins > 0 && walletDiscount < total && (
+                        <span className="text-xs text-blue-600 mt-1 block">Remaining: ₹ {(total - walletDiscount).toLocaleString()} to pay</span>
+                      )}
+                      {safeRedeemCoins >= total && (
+                        <span className="text-xs text-green-600 mt-1 block font-semibold">✓ Full amount covered!</span>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              )}
+              
               {!user && (
-                <div className="mt-3 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="mt-4 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <span className="font-semibold text-blue-900">Note:</span> To proceed with Cash on Delivery, please{" "}
                   <button
                     type="button"
@@ -1220,80 +1499,95 @@ export default function CheckoutPage() {
         </div>
         {/* Right column: discount input, order summary and place order button */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 h-fit flex flex-col justify-between">
-          {/* Discount/Coupon input */}
-          <form onSubmit={handleApplyCoupon} className="mb-4 flex gap-2">
-            <input
-              type="text"
-              className="border border-gray-200 rounded px-3 py-2 flex-1 focus:border-gray-400"
-              placeholder="Discount code or coupon"
-              value={coupon}
-              onChange={e => setCoupon(e.target.value)}
-            />
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded"
-            >
-              Apply
-            </button>
-          </form>
-          {couponError && <div className="text-red-500 text-xs mb-2">{couponError}</div>}
+          {/* Discounts & Coupons - Clickable Section */}
+          <button
+            type="button"
+            onClick={() => setShowCouponModal(true)}
+            className="mb-6 pb-4 border-b border-gray-200 flex items-center justify-between hover:bg-gray-50 -mx-2 px-2 py-2 rounded transition"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd"></path>
+              </svg>
+              <span className="font-semibold text-gray-900">Discounts & Coupons</span>
+            </div>
+            <span className="text-blue-600 text-sm font-semibold flex items-center gap-1">
+              View all
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </span>
+          </button>
           
           {/* Order Details */}
-          <h2 className="font-bold text-lg mb-2 text-gray-900">Order details</h2>
-          <div className="flex justify-between text-sm text-gray-900 mb-2">
-            <span>Items</span>
-            <span>₹ {subtotal.toLocaleString()}</span>
+          <h2 className="font-bold text-lg mb-4 text-gray-900">Order details</h2>
+          <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
+            <div className="flex justify-between text-sm text-gray-900">
+              <span>Items</span>
+              <span>₹ {subtotal.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-900">
+              <span>Shipping & handling</span>
+              <span>{shipping > 0 ? `₹ ${shipping.toLocaleString()}` : '₹ 0'}</span>
+            </div>
+            {appliedCoupon && couponDiscount > 0 && (
+              <div className="flex justify-between text-sm text-blue-600 font-semibold">
+                <span>Coupon discount ({appliedCoupon.code})</span>
+                <span>-₹ {couponDiscount.toLocaleString()}</span>
+              </div>
+            )}
+            {safeRedeemCoins > 0 && (
+              <div className="flex justify-between text-sm text-green-600 font-semibold">
+                <span>Wallet savings</span>
+                <span>-₹ {walletDiscount.toLocaleString()}</span>
+              </div>
+            )}
           </div>
-          <div className="flex justify-between text-sm text-gray-900 mb-2">
-            <span>Shipping &amp; handling</span>
-            <span>{shipping > 0 ? `₹ ${shipping.toLocaleString()}` : '₹ 0'}</span>
-          </div>
+          
           {user && (
-            <div className="mb-3 rounded-lg border border-purple-100 bg-purple-50 p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-purple-800">Wallet Coins</span>
-                <span className="text-purple-800">
-                  {walletLoading ? 'Loading...' : `${walletInfo.coins} coins`}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  max={maxRedeemableCoins}
-                  value={redeemCoins}
-                  onChange={(e) => setRedeemCoins(Math.max(0, Math.min(Number(e.target.value || 0), maxRedeemableCoins)))}
-                  className="w-28 rounded border border-purple-200 bg-white px-2 py-1 text-sm"
-                  placeholder="0"
-                />
-                <button
-                  type="button"
-                  onClick={() => setRedeemCoins(maxRedeemableCoins)}
-                  className="text-xs font-semibold text-purple-700 hover:underline"
-                >
-                  Use max
-                </button>
-              </div>
-              <div className="mt-2 text-xs text-purple-700">
-                10 coins = ₹5. Max usable now: {maxRedeemableCoins} coins
+            <div className="space-y-2 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              {/* <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Wallet used</span>
+                <span className="font-semibold text-gray-900">{safeRedeemCoins} coins</span>
+              </div> */}
+              <div className="flex justify-between text-sm font-semibold">
+                <span className="text-green-700">Wallet discount</span>
+                <span className="text-green-600">-₹ {walletDiscount.toLocaleString()}</span>
               </div>
             </div>
           )}
-          {safeRedeemCoins > 0 && (
-            <div className="flex justify-between text-sm text-purple-800 mb-2">
-              <span>Wallet discount</span>
-              <span>-₹ {walletDiscount.toLocaleString()}</span>
-            </div>
-          )}
-          <hr className="my-2" />
+          <hr className="my-3" />
           
-          {/* Total - Desktop Only */}
-          <div className="hidden md:flex justify-between font-bold text-base text-gray-900 mb-4">
-            <span>Total</span>
-            <span>₹ {totalAfterWallet.toLocaleString()}</span>
+          {/* Coupon Discount Display */}
+          {appliedCoupon && couponDiscount > 0 && (
+            <div className="space-y-2 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Coupon applied</span>
+                <span className="font-semibold text-gray-900">{appliedCoupon.code}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">{appliedCoupon.title}</span>
+                <span className="font-semibold text-green-600">-₹ {couponDiscount.toLocaleString()}</span>
+              </div>
+              <button
+                onClick={() => {
+                  setAppliedCoupon(null);
+                  setCoupon('');
+                }}
+                className="text-xs text-red-600 hover:text-red-700 font-semibold"
+              >
+                Remove coupon
+              </button>
+            </div>
+          )}
+          
+          {/* Final Total */}
+          <div className="mb-4 pb-4 border-b border-gray-200">
+            <div className="flex justify-between font-bold text-lg text-gray-900">
+              <span>Total to pay</span>
+              <span>₹ {totalAfterWallet.toLocaleString()}</span>
+            </div>
           </div>
-          
-          {/* Place Order Button - Desktop Only */}
           <button
             type="submit"
             form="checkout-form"
@@ -1318,18 +1612,71 @@ export default function CheckoutPage() {
               </span>
             )}
           </button>
+          
+          {/* Safe & Secure Checkout */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <h3 className="font-semibold text-gray-900">Safe & Secure Checkout</h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-gray-700">SSL Encrypted Payment</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-gray-700">100% Secure Transactions</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-gray-700">Your Data is Protected</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-gray-700">Safe & Easy Returns</span>
+              </div>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">We protect your payment information</p>
+                  <p className="text-xs text-blue-700 mt-1">All transactions are encrypted and secure. We never store your card details.</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              
+              <span className="text-gray-300">•</span>
+              <a href="/terms-of-use" className="text-gray-600 hover:text-gray-900 hover:underline">Terms of Use</a>
+              <span className="text-gray-300">•</span>
+              <a href="/terms-of-sale" className="text-gray-600 hover:text-gray-900 hover:underline">Terms of Sale</a>
+              <span className="text-gray-300">•</span>
+              <a href="/privacy-policy" className="text-gray-600 hover:text-gray-900 hover:underline">Privacy Policy</a>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Sticky Footer - Only Total and Place Order on Mobile */}
       <div className="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-gray-200 shadow-lg z-40 p-4">
         <div className="max-w-6xl mx-auto">
-          {/* Total - Sticky on Mobile */}
-          <div className="flex justify-between font-bold text-base text-gray-900 mb-4">
-            <span>Total</span>
-            <span>₹ {totalAfterWallet.toLocaleString()}</span>
-          </div>
-          
           {/* Address validation message */}
           {!form.addressId && !(form.name && form.phone && form.pincode && form.city && form.state && form.street) && (
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm p-3 rounded mb-3">
@@ -1340,7 +1687,7 @@ export default function CheckoutPage() {
           <button
             type="submit"
             form="checkout-form"
-            className={`relative w-full text-white font-bold py-3 rounded text-lg transition shadow-md hover:shadow-lg ${
+            className={`relative w-full text-white font-bold py-4 rounded-lg text-base transition shadow-md hover:shadow-lg flex items-center justify-between px-6 ${
               (!form.addressId && !(form.name && form.phone && form.pincode && form.city && form.state && form.street)) || placingOrder 
                 ? 'bg-gray-400 cursor-not-allowed opacity-75' 
                 : form.payment === 'cod' 
@@ -1352,20 +1699,17 @@ export default function CheckoutPage() {
             disabled={(!form.addressId && !(form.name && form.phone && form.pincode && form.city && form.state && form.street)) || placingOrder}
             aria-busy={placingOrder}
           >
+            <span className="text-lg font-bold">₹ {totalAfterWallet.toLocaleString()}</span>
             {placingOrder ? (
               <span className="inline-flex items-center gap-2">
                 <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                 </svg>
-                Placing order...
+                Placing...
               </span>
-            ) : form.payment === 'card' ? (
-              'Pay by Card'
-            ) : form.payment === 'cod' ? (
-              'Pay by COD'
             ) : (
-              'Place order'
+              <span className="text-base uppercase tracking-wide">Place Order</span>
             )}
             {placingOrder && (
               <span className="absolute left-0 top-0 h-full w-full overflow-hidden rounded opacity-20">
@@ -1394,6 +1738,11 @@ export default function CheckoutPage() {
           dispatch(fetchAddress({ getToken }));
           setEditingAddressId(null);
         }}
+        addressList={addressList}
+        selectedAddressId={form.addressId}
+        onSelectAddress={(addressId) => {
+          setForm(f => ({ ...f, addressId }));
+        }}
       />
       <SignInModal open={showSignIn} onClose={() => setShowSignIn(false)} />
       <PincodeModal 
@@ -1415,6 +1764,235 @@ export default function CheckoutPage() {
         onPayNow={handlePayNowForExistingOrder}
         loading={payingNow}
       />
+
+      {/* Coupon Modal */}
+      {showCouponModal && (
+        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCouponModal(false)}>
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-gray-900">Apply Coupon</h3>
+              <button onClick={() => setShowCouponModal(false)} className="text-gray-400 hover:text-gray-600 transition">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Coupon Input */}
+            <div className="p-6 border-b border-gray-200">
+              <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                <input
+                  type="text"
+                  className="border border-gray-300 rounded-lg px-4 py-3 flex-1 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  placeholder="Enter coupon code"
+                  value={coupon}
+                  onChange={e => setCoupon(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition whitespace-nowrap"
+                >
+                  Apply
+                </button>
+              </form>
+              {couponError && <div className="text-red-500 text-xs mt-2">{couponError}</div>}
+            </div>
+
+            {/* Available Coupons */}
+            <div className="p-6">
+              <h4 className="font-semibold text-gray-900 mb-4">Available Coupons</h4>
+              
+              {availableCoupons.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">No coupons available at the moment</p>
+              ) : (
+                availableCoupons.map((cpn) => {
+                  // Determine eligibility
+                  // Convert cartItems object to array
+                  const cartItemsArray = Object.entries(cartItems || {}).map(([id, value]) => ({
+                    productId: id,
+                    quantity: typeof value === 'number' ? value : value?.quantity || 0,
+                    variantId: typeof value === 'object' ? value?.variantId : undefined
+                  }));
+                  
+                  const itemsTotal = cartItemsArray.reduce((sum, item) => {
+                    const product = products.find((p) => p._id === item.productId);
+                    if (!product) return sum;
+                    const variant = product.variants?.find((v) => v._id === item.variantId);
+                    const price = variant?.salePrice || variant?.price || product.salePrice || product.price || 0;
+                    return sum + price * item.quantity;
+                  }, 0);
+                  
+                  const cartProductIds = cartItemsArray.map(item => item.productId);
+                  
+                  let isEligible = true;
+                  let ineligibleReason = '';
+                  
+                  // Check if expired
+                  if (cpn.isExpired) {
+                    isEligible = false;
+                    ineligibleReason = 'Coupon expired';
+                  }
+                  // Check if exhausted
+                  else if (cpn.isExhausted) {
+                    isEligible = false;
+                    ineligibleReason = 'Usage limit reached';
+                  }
+                  // Check minimum order value
+                  else if (itemsTotal < cpn.minOrderValue) {
+                    isEligible = false;
+                    ineligibleReason = `Min order ₹${cpn.minOrderValue} required`;
+                  }
+                  // Check if product-specific
+                  else if (cpn.specificProducts?.length > 0) {
+                    const hasEligibleProduct = cpn.specificProducts.some(pid => cartProductIds.includes(pid));
+                    if (!hasEligibleProduct) {
+                      isEligible = false;
+                      ineligibleReason = 'Not applicable for your products';
+                    }
+                  }
+                  
+                  const badgeColors = {
+                    green: 'bg-green-100 text-green-700',
+                    orange: 'bg-orange-100 text-orange-700',
+                    purple: 'bg-purple-100 text-purple-700',
+                    blue: 'bg-blue-100 text-blue-700',
+                  };
+                  const badgeClass = badgeColors[cpn.badgeColor] || badgeColors.green;
+                  
+                  return (
+                    <div
+                      key={cpn._id}
+                      className={`border border-dashed rounded-lg p-4 mb-3 transition ${
+                        isEligible 
+                          ? 'border-gray-300 hover:border-blue-400 cursor-pointer hover:bg-blue-50' 
+                          : 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-75'
+                      }`}
+                      onClick={async () => { 
+                        if (isEligible && !couponLoading) {
+                          setCoupon(cpn.code);
+                          setCouponLoading(true);
+                          setCouponError("");
+                          
+                          try {
+                            const res = await fetch('/api/coupons', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                code: cpn.code,
+                                storeId: storeId,
+                                orderTotal: itemsTotal,
+                                userId: user?.uid || null,
+                                cartProductIds: cartItemsArray.map(i => i.productId),
+                              }),
+                            });
+                            
+                            const data = await res.json();
+                            
+                            if (res.ok && data.valid) {
+                              setAppliedCoupon(data.coupon);
+                              setShowCouponModal(false);
+                            } else {
+                              setCouponError(data.error || "Invalid coupon code");
+                            }
+                          } catch (error) {
+                            setCouponError("Failed to apply coupon");
+                          } finally {
+                            setCouponLoading(false);
+                          }
+                        } 
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-1">
+                          <div className={`${badgeClass} font-bold text-xs px-2 py-1 rounded`}>
+                            {cpn.code}
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-sm font-semibold text-gray-900 block">{cpn.title}</span>
+                            {!isEligible && <span className="text-xs text-red-600 font-medium">{ineligibleReason}</span>}
+                          </div>
+                        </div>
+                        {isEligible && <button className="text-blue-600 text-xs font-semibold ml-2 whitespace-nowrap">APPLY</button>}
+                      </div>
+                      <p className="text-xs text-gray-600">{cpn.description}</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recommended Products Section */}
+      {products && products.filter(p => (p.salePrice || p.price || 0) < 50).length > 0 && (
+      <div className="py-12 bg-white border-t ">
+        <div className="max-w-[1250px] mx-auto px-4 sm:px-6">
+          <h2 className="text-2xl font-bold mb-8 text-gray-900">Recommended For You</h2>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {products && products.filter(product => {
+              const price = product.salePrice || product.price || 0;
+              return price < 50;
+            }).map((product) => {
+              const price = product.salePrice || product.price || 0;
+              const imageUrl = product.image || product.images?.[0] || '/placeholder.png';
+              
+              return (
+                <Link 
+                  key={product._id} 
+                  href={`/product/${product._id}`}
+                  className="group bg-white rounded-lg border border-gray-200 hover:border-orange-400 overflow-hidden transition-all hover:shadow-md"
+                >
+                  <div className="relative w-full aspect-square bg-gray-100 overflow-hidden">
+                    <img 
+                      src={imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                    {product.discount && (
+                      <div className="absolute top-2 right-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded">
+                        {product.discount}% OFF
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-3">
+                    <p className="text-xs text-gray-600 font-medium line-clamp-1 mb-1">
+                      {product.brand || 'Brand'}
+                    </p>
+                    <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 mb-2">
+                      {product.name}
+                    </h3>
+                    
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-lg font-bold text-gray-900">₹{Math.floor(price)}</span>
+                      {product.price > price && (
+                        <span className="text-xs text-gray-500 line-through">₹{Math.floor(product.price)}</span>
+                      )}
+                    </div>
+                    
+                    {product.rating && (
+                      <div className="flex items-center gap-1">
+                        <div className="flex items-center">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className={`text-xs ${i < Math.floor(product.rating) ? 'text-yellow-400' : 'text-gray-300'}`}>
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-xs text-gray-500">({product.reviews || 0})</span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      )}
       
       {/* Razorpay Script */}
       <Script

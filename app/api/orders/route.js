@@ -173,7 +173,7 @@ export async function POST(request) {
                 wallet = await Wallet.create({ userId, coins: 0 });
             }
             const availableCoins = Number(wallet.coins || 0);
-            redeemableCoins = Math.max(0, Math.min(Math.floor(Number(coinsToRedeem)), availableCoins));
+            redeemableCoins = Math.max(0, Math.min(100, Math.floor(Number(coinsToRedeem)), availableCoins));
         }
 
         // Order creation
@@ -226,9 +226,9 @@ export async function POST(request) {
             let coinsRedeemed = 0;
             let walletDiscount = 0;
             if (!walletRedeemApplied && redeemableCoins > 0) {
-                const maxCoinsByTotal = Math.floor(total / 0.5);
+                const maxCoinsByTotal = Math.floor(total / 1);
                 coinsRedeemed = Math.min(redeemableCoins, maxCoinsByTotal);
-                walletDiscount = Number((coinsRedeemed * 0.5).toFixed(2));
+                walletDiscount = Number((coinsRedeemed * 1).toFixed(2));
                 total = Math.max(0, Number((total - walletDiscount).toFixed(2)));
                 walletRedeemApplied = true;
             }
@@ -394,6 +394,15 @@ export async function POST(request) {
                     { new: true }
                 );
             }
+            
+            // Increment coupon usage count if coupon was applied
+            if (coupon && coupon.code) {
+                await Coupon.findOneAndUpdate(
+                    { code: coupon.code.toUpperCase(), storeId: storeId },
+                    { $inc: { usedCount: 1 } }
+                );
+            }
+            
             // Set shortOrderNumber (last 6 hex digits of ObjectId as decimal)
             const hex = order._id.toString().slice(-6);
             const shortOrderNumber = parseInt(hex, 16);

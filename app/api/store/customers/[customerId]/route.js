@@ -4,6 +4,7 @@ import connectDB from '@/lib/mongodb';
 import User from '@/models/User';
 import Order from '@/models/Order';
 import AbandonedCart from '@/models/AbandonedCart';
+import Wallet from '@/models/Wallet';
 
 // Get individual customer details with full order history
 export async function GET(request, { params }) {
@@ -130,6 +131,12 @@ export async function GET(request, { params }) {
         const totalOrders = ordersWithItems.length;
         const averageOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
 
+        let walletBalance = 0;
+        if (!isGuest) {
+            const wallet = await Wallet.findOne({ userId: customerId }).lean();
+            walletBalance = Number(wallet?.coins || 0);
+        }
+
         const customerDetails = {
             ...customer,
             totalOrders,
@@ -138,7 +145,8 @@ export async function GET(request, { params }) {
             firstOrderDate: ordersWithItems.length > 0 ? ordersWithItems[ordersWithItems.length - 1].createdAt : null,
             lastOrderDate: ordersWithItems.length > 0 ? ordersWithItems[0].createdAt : null,
             orders: ordersWithItems,
-            abandonedCart
+            abandonedCart,
+            walletBalance
         };
 
         return NextResponse.json({ customer: customerDetails });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
 import User from '@/models/User';
+import Wallet from '@/models/Wallet';
 
 // Get all customers for a store with their order statistics
 
@@ -126,6 +127,20 @@ export async function GET(request) {
 
         // Convert map to array and sort by total spent (descending)
         const customers = Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
+
+        // Attach wallet balance for registered users
+        const userIds = customers
+            .filter(c => !c.isGuest && c.id && !String(c.id).startsWith('guest-') && !String(c.id).startsWith('unknown-'))
+            .map(c => c.id.toString());
+
+        const wallets = userIds.length > 0
+            ? await Wallet.find({ userId: { $in: userIds } }).lean()
+            : [];
+        const walletMap = new Map(wallets.map(w => [w.userId, Number(w.coins || 0)]));
+
+        customers.forEach(c => {
+            c.walletBalance = c.isGuest ? 0 : (walletMap.get(c.id.toString()) || 0);
+        });
 
         console.log('[customers API] Customers found:', customers.length);
 

@@ -24,13 +24,13 @@ export async function POST(request) {
       return NextResponse.json({ message: "Welcome bonus already claimed", coins: wallet.coins });
     }
 
-    const bonusCoins = 50;
+    const bonusCoins = 20;
     wallet.coins = Number(wallet.coins || 0) + bonusCoins;
     wallet.welcomeBonusClaimed = true;
     wallet.transactions.push({
       type: "EARN",
       coins: bonusCoins,
-      rupees: Number((bonusCoins * 0.5).toFixed(2)),
+      rupees: Number((bonusCoins * 1).toFixed(2)),
       orderId: "WELCOME_BONUS"
     });
     await wallet.save();

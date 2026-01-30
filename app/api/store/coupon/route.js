@@ -112,10 +112,13 @@ export async function POST(req) {
         // Create coupon
         const coupon = await Coupon.create({
             code: code.toUpperCase(),
+            title: `${discount}${discountType === 'percentage' ? '% Off' : ' Off'}`, // Auto-generate title
             description,
             discount: parseFloat(discount),
             discountType: discountType || 'percentage',
+            discountValue: parseFloat(discount), // Add new field
             minPrice: minPrice ? parseFloat(minPrice) : 0,
+            minOrderValue: minPrice ? parseFloat(minPrice) : 0, // Add new field
             minProductCount: minProductCount ? parseInt(minProductCount) : null,
             specificProducts: specificProducts || [],
             forNewUser: forNewUser || false,
@@ -123,15 +126,23 @@ export async function POST(req) {
             firstOrderOnly: firstOrderOnly || false,
             oneTimePerUser: oneTimePerUser || false,
             usageLimit: usageLimit ? parseInt(usageLimit) : null,
+            maxUses: usageLimit ? parseInt(usageLimit) : null, // Add new field
             isPublic: isPublic !== undefined ? isPublic : true,
             isActive: true,
             storeId: store._id.toString(),
             expiresAt: new Date(expiresAt)
         });
 
-        return NextResponse.json({ coupon }, { status: 201 });
+        console.log('Coupon created:', {
+            code: coupon.code,
+            storeId: coupon.storeId,
+            isActive: coupon.isActive,
+            expiresAt: coupon.expiresAt
+        });
+
+        return NextResponse.json({ coupon, success: true }, { status: 201 });
     } catch (error) {
         console.error("Error creating coupon:", error);
-        return NextResponse.json({ error: "Failed to create coupon" }, { status: 500 });
+        return NextResponse.json({ error: error.message || "Failed to create coupon" }, { status: 500 });
     }
 }

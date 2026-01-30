@@ -37,9 +37,12 @@ export async function PUT(req, { params }) {
         }
 
         // Check if coupon belongs to this store
-        const existingCoupon = await Coupon.findOne({ code }).lean();
+        const existingCoupon = await Coupon.findOne({ 
+            code: code.toUpperCase(),
+            storeId: store._id.toString()
+        }).lean();
 
-        if (!existingCoupon || existingCoupon.storeId !== store._id.toString()) {
+        if (!existingCoupon) {
             return NextResponse.json({ error: "Coupon not found" }, { status: 404 });
         }
 
@@ -61,33 +64,60 @@ export async function PUT(req, { params }) {
             expiresAt
         } = body;
 
-        // Update coupon
+        console.log('Updating coupon:', code, 'with data:', body);
+
+        // Update coupon - sync both old and new schema fields
         const updateData = {};
         if (description !== undefined) updateData.description = description;
-        if (discount !== undefined) updateData.discount = parseFloat(discount);
+        if (discount !== undefined) {
+            updateData.discount = parseFloat(discount);
+            updateData.discountValue = parseFloat(discount); // Sync new field
+        }
         if (discountType !== undefined) updateData.discountType = discountType;
-        if (minPrice !== undefined) updateData.minPrice = parseFloat(minPrice);
+        if (minPrice !== undefined) {
+            updateData.minPrice = parseFloat(minPrice);
+            updateData.minOrderValue = parseFloat(minPrice); // Sync new field
+        }
         if (minProductCount !== undefined) updateData.minProductCount = minProductCount ? parseInt(minProductCount) : null;
         if (specificProducts !== undefined) updateData.specificProducts = specificProducts;
         if (forNewUser !== undefined) updateData.forNewUser = forNewUser;
         if (forMember !== undefined) updateData.forMember = forMember;
         if (firstOrderOnly !== undefined) updateData.firstOrderOnly = firstOrderOnly;
         if (oneTimePerUser !== undefined) updateData.oneTimePerUser = oneTimePerUser;
-        if (usageLimit !== undefined) updateData.usageLimit = usageLimit ? parseInt(usageLimit) : null;
+        if (usageLimit !== undefined) {
+            updateData.usageLimit = usageLimit ? parseInt(usageLimit) : null;
+            updateData.maxUses = usageLimit ? parseInt(usageLimit) : null; // Sync new field
+        }
         if (isPublic !== undefined) updateData.isPublic = isPublic;
         if (isActive !== undefined) updateData.isActive = isActive;
         if (expiresAt) updateData.expiresAt = new Date(expiresAt);
         
+        // Auto-generate title if discount changed
+        if (discount !== undefined && discountType !== undefined) {
+            updateData.title = `${discount}${discountType === 'percentage' ? '% Off' : ' Off'}`;
+        }
+        
+        console.log('Update data:', updateData);
+        
         const coupon = await Coupon.findOneAndUpdate(
-            { code },
+            { 
+                code: code.toUpperCase(),
+                storeId: store._id.toString()
+            },
             updateData,
             { new: true }
         ).lean();
 
-        return NextResponse.json({ coupon }, { status: 200 });
+        if (!coupon) {
+            console.error('Coupon not found after update attempt');
+            return NextResponse.json({ error: "Failed to update coupon" }, { status: 404 });
+        }
+
+        console.log('Coupon updated successfully:', coupon);
+        return NextResponse.json({ coupon, success: true }, { status: 200 });
     } catch (error) {
         console.error("Error updating coupon:", error);
-        return NextResponse.json({ error: "Failed to update coupon" }, { status: 500 });
+        return NextResponse.json({ error: error.message || "Failed to update coupon" }, { status: 500 });
     }
 }
 

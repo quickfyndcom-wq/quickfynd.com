@@ -15,7 +15,7 @@ import Logo from "../assets/logo/Asset 6.png";
 import LogoWhite from "../assets/logo/Asset 11.png";
 import LogoMobile from "../assets/logo/Asset 3.png";
 import Truck from '../assets/delivery.png';
-import CoinIcon from '../assets/common/coin.svg';
+import WalletIcon from '../assets/common/wallet.svg';
 import SignInModal from './SignInModal';
 
 const Navbar = () => {
@@ -442,12 +442,12 @@ const Navbar = () => {
 
           {/* Center - Links and Search */}
           <div className="hidden lg:flex items-center flex-1 justify-center gap-6 px-8">
-            <Link href="/top-selling" className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1.5">
+            {/* <Link href="/top-selling" className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
               </svg>
               Top Selling Items
-            </Link>
+            </Link> */}
           
             {/* <Link href="/new" className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -621,42 +621,30 @@ const Navbar = () => {
 
           {/* Right Side - Actions */}
           <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
-            {firebaseUser ? (
-              <Link
-                href="/wallet"
-                className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-full text-amber-800 text-xs font-semibold hover:bg-amber-100 transition"
-              >
-                <Image src={CoinIcon} alt="Wallet" width={20} height={20} />
-                <span>Wallet: {walletCoins}</span>
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setSignInMode('register');
-                  setSignInOpen(true);
-                }}
-                className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-full text-amber-800 text-xs font-semibold hover:bg-amber-100 transition"
-              >
-                <Image src={CoinIcon} alt="Wallet" width={20} height={20} />
-                <span>Wallet</span>
-              </button>
-            )}
             {/* Login/User Button */}
             {firebaseUser ? (
               <div
-                className="relative flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full cursor-pointer group"
+                className="relative flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-sm rounded-full cursor-pointer group hover:bg-white/10 transition"
                 onMouseEnter={() => setUserDropdownOpen(true)}
                 onMouseLeave={() => setUserDropdownOpen(false)}
               >
                 {firebaseUser.photoURL ? (
-                  <Image src={firebaseUser.photoURL} alt="User" width={32} height={32} className="rounded-full object-cover" />
+                  <Image src={firebaseUser.photoURL} alt="User" width={32} height={32} className="rounded-full object-cover border-2 border-white/20" />
                 ) : (
-                  <span className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 text-white font-bold text-lg">
+                  <span className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 text-white font-bold text-lg border-2 border-white/20">
                     {firebaseUser.displayName?.[0]?.toUpperCase() || firebaseUser.email?.[0]?.toUpperCase() || 'U'}
                   </span>
                 )}
-                <span className="font-medium text-gray-700 text-sm">Hi, {getShortName(firebaseUser.displayName || firebaseUser.email)}</span>
+                <div className="flex flex-col leading-tight">
+                  <span className="font-medium text-white text-sm">Hi, {getShortName(firebaseUser.displayName || firebaseUser.email)}</span>
+                  <Link
+                    href="/wallet"
+                    className="mt-0 inline-flex items-center gap-1 px-2 py-0 bg-emerald-500 rounded-full text-white text-[10px] font-bold hover:bg-emerald-600 transition w-fit shadow-sm"
+                  >
+                    <Image src={WalletIcon} alt="Wallet" width={14} height={14} />
+                    <span>Wallet: {walletCoins}</span>
+                  </Link>
+                </div>
                 {/* Dashboard button for seller */}
                 {isSeller && (
                   <button
@@ -906,20 +894,21 @@ const Navbar = () => {
                       {firebaseUser.displayName?.[0]?.toUpperCase() || firebaseUser.email?.[0]?.toUpperCase() || 'U'}
                     </span>
                   )}
-                  <span className="font-medium">Hi, {getShortName(firebaseUser.displayName || firebaseUser.email)}</span>
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-medium">Hi, {getShortName(firebaseUser.displayName || firebaseUser.email)}</span>
+                    <Link
+                      href="/wallet"
+                      className="mt-0 inline-flex items-center gap-1 px-2 py-0 bg-amber-100 border border-amber-200 rounded-full text-amber-800 text-[10px] font-semibold w-fit"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Image src={WalletIcon} alt="Wallet" width={14} height={14} />
+                      <span>Wallet: {walletCoins}</span>
+                    </Link>
+                  </div>
                 </div>
               )}
 
-              {firebaseUser ? (
-                <Link
-                  href="/wallet"
-                  className="w-full px-4 py-3 bg-amber-50 text-amber-800 text-sm font-semibold rounded-full mb-4 flex items-center gap-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Image src={CoinIcon} alt="Wallet" width={20} height={20} />
-                  <span>Wallet: {walletCoins}</span>
-                </Link>
-              ) : (
+              {firebaseUser ? null : (
                 <button
                   type="button"
                   onClick={() => {
@@ -929,7 +918,7 @@ const Navbar = () => {
                   }}
                   className="w-full px-4 py-3 bg-amber-50 text-amber-800 text-sm font-semibold rounded-full mb-4 flex items-center gap-2"
                 >
-                  <Image src={CoinIcon} alt="Wallet" width={20} height={20} />
+                  <Image src={WalletIcon} alt="Wallet" width={20} height={20} />
                   <span>Wallet</span>
                 </button>
               )}
@@ -1136,7 +1125,7 @@ const Navbar = () => {
           open={signInOpen}
           onClose={() => setSignInOpen(false)}
           defaultMode={signInMode}
-          bonusMessage="Register now and get 50 coins free bonus!"
+          bonusMessage="Register now and get 20 coins free bonus!"
         />
       )}
     </div>

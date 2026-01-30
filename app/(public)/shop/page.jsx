@@ -232,7 +232,7 @@ function ShopContent() {
                                 </button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
                                 {filteredAndSortedProducts.map((product) => (
                                     <ProductCard key={product._id || product.id} product={product} />
                                 ))}

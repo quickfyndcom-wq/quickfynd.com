@@ -16,10 +16,15 @@ const keralaDistricts = [
     "Alappuzha", "Ernakulam", "Idukki", "Kannur", "Kasaragod", "Kollam", "Kottayam", "Kozhikode", "Malappuram", "Palakkad", "Pathanamthitta", "Thiruvananthapuram", "Thrissur", "Wayanad"
 ];
 
-const AddressModal = ({ open, setShowAddressModal, onAddressAdded, initialAddress = null, isEdit = false, onAddressUpdated }) => {
+const AddressModal = ({ open, setShowAddressModal, onAddressAdded, initialAddress = null, isEdit = false, onAddressUpdated, addressList = [], onSelectAddress, selectedAddressId }) => {
     const { user, getToken } = useAuth()
     const dispatch = useDispatch()
     const phoneInputRef = useRef(null)
+    
+    const [mode, setMode] = useState('select') // 'select' or 'form'
+    const [editingAddress, setEditingAddress] = useState(null) // Track which address is being edited
+    
+    console.log('🔵 AddressModal Props:', { open, addressListLength: addressList.length, mode, isEdit, selectedAddressId })
 
     const [address, setAddress] = useState({
         name: '',
@@ -36,12 +41,26 @@ const AddressModal = ({ open, setShowAddressModal, onAddressAdded, initialAddres
         alternatePhoneCode: '+91',
         id: null,
     })
-
-    // Prefill when editing
+    
+    // Set mode based on props
     useEffect(() => {
-        if (isEdit && initialAddress) {
+        if (open) {
+            if (isEdit || addressList.length === 0) {
+                setMode('form');
+            } else {
+                setMode('select');
+                setEditingAddress(null); // Reset editing when opening in select mode
+            }
+        }
+    }, [isEdit, addressList.length, open]);
+
+    // Prefill when editing or reset when adding new
+    useEffect(() => {
+        const addressToEdit = editingAddress || initialAddress;
+        console.log('📝 Address useEffect triggered:', { editingAddress: editingAddress?.name, initialAddress: initialAddress?.name, isEdit });
+        if ((isEdit || editingAddress) && addressToEdit) {
             // Extract phone number without country code if present
-            let phoneNumber = initialAddress.phone || '';
+            let phoneNumber = addressToEdit.phone || '';
             // If phone starts with +, remove country code part
             if (phoneNumber.startsWith('+')) {
                 // Remove country code (everything before the actual number)
@@ -49,22 +68,39 @@ const AddressModal = ({ open, setShowAddressModal, onAddressAdded, initialAddres
             }
             
             setAddress({
-                id: initialAddress.id || initialAddress._id || null,
-                name: initialAddress.name || '',
-                email: initialAddress.email || '',
-                street: initialAddress.street || '',
-                city: initialAddress.city || '',
-                state: initialAddress.state || '',
-                district: initialAddress.district || '',
-                zip: initialAddress.zip || '',
-                country: initialAddress.country || 'India',
+                id: addressToEdit.id || addressToEdit._id || null,
+                name: addressToEdit.name || '',
+                email: addressToEdit.email || '',
+                street: addressToEdit.street || '',
+                city: addressToEdit.city || '',
+                state: addressToEdit.state || '',
+                district: addressToEdit.district || '',
+                zip: addressToEdit.zip || '',
+                country: addressToEdit.country || 'India',
                 phone: phoneNumber,
-                phoneCode: initialAddress.phoneCode || '+91',
-                alternatePhone: initialAddress.alternatePhone || '',
-                alternatePhoneCode: initialAddress.alternatePhoneCode || initialAddress.phoneCode || '+91',
+                phoneCode: addressToEdit.phoneCode || '+91',
+                alternatePhone: addressToEdit.alternatePhone || '',
+                alternatePhoneCode: addressToEdit.alternatePhoneCode || addressToEdit.phoneCode || '+91',
+            })
+        } else if (!isEdit && !editingAddress) {
+            // Reset form when adding new address
+            setAddress({
+                name: '',
+                email: '',
+                street: '',
+                city: '',
+                state: '',
+                district: '',
+                zip: '',
+                country: 'India',
+                phone: '',
+                phoneCode: '+91',
+                alternatePhone: '',
+                alternatePhoneCode: '+91',
+                id: null,
             })
         }
-    }, [isEdit, initialAddress])
+    }, [isEdit, initialAddress, editingAddress])
 
     const countries = [
         { name: 'India', code: '+91' },
@@ -180,14 +216,110 @@ const AddressModal = ({ open, setShowAddressModal, onAddressAdded, initialAddres
     if (!open) return null;
     return (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto my-8">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">{isEdit ? 'Edit' : 'Add New'} <span className="text-blue-600">Address</span></h2>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col my-8">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                        {mode === 'select' ? 'Deliver to' : (isEdit || editingAddress ? 'Edit Address' : 'Add New Address')}
+                    </h2>
                     <button type="button" onClick={() => setShowAddressModal(false)} className="text-gray-400 hover:text-gray-600 transition">
                         <XIcon size={24} />
                     </button>
                 </div>
-                <form onSubmit={e => toast.promise(handleSubmit(e), { loading: 'Adding Address...' })} className="space-y-4">
+                
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto">
+                    {mode === 'select' ? (
+                        /* Address Selection List */
+                        <div className="p-6">
+                            <h3 className="text-sm font-semibold text-gray-700 uppercase mb-4">Saved Addresses</h3>
+                            <div className="space-y-3">
+                                {addressList.map((addr) => {
+                                    const isSelected = selectedAddressId === addr._id;
+                                    return (
+                                        <div
+                                            key={addr._id}
+                                            className={`border-2 rounded-lg p-4 cursor-pointer transition ${
+                                                isSelected 
+                                                    ? 'border-blue-500 bg-blue-50' 
+                                                    : 'border-gray-200 hover:border-blue-300'
+                                            }`}
+                                            onClick={() => {
+                                                if (onSelectAddress) {
+                                                    onSelectAddress(addr._id);
+                                                }
+                                                setShowAddressModal(false);
+                                            }}
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-start gap-3 flex-1">
+                                                    {/* Radio/Checkmark */}
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                                                        isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                                                    }`}>
+                                                        {isSelected && (
+                                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {/* Address Details */}
+                                                    <div className="flex-1">
+                                                        <div className="font-bold text-gray-900 mb-1">{addr.name}</div>
+                                                        <div className="text-gray-700 text-sm">{addr.street}</div>
+                                                        <div className="text-gray-600 text-sm">
+                                                            {addr.city}, {addr.district && `${addr.district}, `}{addr.state}
+                                                        </div>
+                                                        <div className="text-gray-600 text-sm">
+                                                            {addr.country} - {addr.zip || addr.pincode || '673571'}
+                                                        </div>
+                                                        <div className="text-orange-600 text-sm font-semibold mt-2">
+                                                            {addr.phoneCode || '+91'} {addr.phone}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Action Menu */}
+                                                <div className="flex gap-2 ml-4">
+                                                    <button
+                                                        type="button"
+                                                        className="text-blue-600 text-xs font-semibold hover:underline"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            console.log('✏️ Edit clicked for address:', addr.name, addr);
+                                                            setEditingAddress(addr);
+                                                            setMode('form');
+                                                        }}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            {/* Add New Address Button */}
+                            <button
+                                type="button"
+                                className="w-full mt-4 border-2 border-dashed border-blue-400 rounded-lg p-4 text-blue-600 font-semibold hover:bg-blue-50 transition flex items-center justify-center gap-2"
+                                onClick={() => {
+                                    console.log('➕ Add New Address clicked');
+                                    setEditingAddress(null);
+                                    setMode('form');
+                                }}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add New Address
+                            </button>
+                        </div>
+                    ) : (
+                        /* Address Form */
+                        <form onSubmit={e => toast.promise(handleSubmit(e), { loading: 'Adding Address...' })} className="p-6 space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
                         <input 
@@ -385,13 +517,21 @@ const AddressModal = ({ open, setShowAddressModal, onAddressAdded, initialAddres
                         </button>
                         <button 
                             type="button"
-                            onClick={() => setShowAddressModal(false)}
+                            onClick={() => {
+                                if (mode === 'form' && addressList.length > 0 && !isEdit) {
+                                    setMode('select'); // Go back to selection
+                                } else {
+                                    setShowAddressModal(false);
+                                }
+                            }}
                             className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-3 rounded-lg transition-colors"
                         >
-                            CANCEL
+                            {mode === 'form' && addressList.length > 0 && !isEdit ? 'BACK' : 'CANCEL'}
                         </button>
                     </div>
                 </form>
+                    )}
+                </div>
             </div>
         </div>
     )

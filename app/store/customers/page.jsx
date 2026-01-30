@@ -22,6 +22,7 @@ export default function CustomersPage() {
     const [customerDetails, setCustomerDetails] = useState(null)
     const [detailsLoading, setDetailsLoading] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [walletAmount, setWalletAmount] = useState('')
 
     const fetchCustomers = async () => {
         try {
@@ -50,8 +51,36 @@ export default function CustomersPage() {
         setDetailsLoading(false)
     }
 
+    const handleAddWallet = async () => {
+        if (!customerDetails || customerDetails.isGuest) {
+            toast.error('Wallet not available for guest customers')
+            return
+        }
+        const amount = Number(walletAmount)
+        if (!Number.isFinite(amount) || amount <= 0) {
+            toast.error('Enter a valid wallet amount')
+            return
+        }
+        try {
+            const token = await getToken()
+            const { data } = await axios.post('/api/store/customers/wallet', {
+                userId: customerDetails._id,
+                amount
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            setCustomerDetails(prev => prev ? { ...prev, walletBalance: data.walletBalance } : prev)
+            setCustomers(prev => prev.map(c => (c.id === customerDetails._id ? { ...c, walletBalance: data.walletBalance } : c)))
+            setWalletAmount('')
+            toast.success('Wallet updated')
+        } catch (error) {
+            toast.error(error?.response?.data?.error || error.message)
+        }
+    }
+
     const handleCustomerClick = (customer) => {
         setSelectedCustomer(customer)
+        setWalletAmount('')
         fetchCustomerDetails(customer._id || customer.id)
     }
 
@@ -159,6 +188,12 @@ export default function CustomersPage() {
                                         <p className="text-xs font-medium text-green-900">Spent</p>
                                     </div>
                                     <p className="text-xl font-bold text-green-600">{currency}{Math.round(customer.totalSpent)}</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3 col-span-2">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs font-medium text-purple-900">Wallet Balance</p>
+                                        <span className="text-xs text-purple-700">{customer.isGuest ? 'Guest' : `${customer.walletBalance || 0} wallet`}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -286,6 +321,33 @@ export default function CustomersPage() {
                                             <p className="text-lg font-bold text-orange-900">
                                                 {customerDetails.firstOrderDate ? new Date(customerDetails.firstOrderDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'}
                                             </p>
+                                        </div>
+
+                                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200 md:col-span-2">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="text-sm text-purple-700 font-semibold">Wallet Balance</p>
+                                                <span className="text-purple-900 font-bold text-lg">
+                                                    {customerDetails.isGuest ? 'Guest' : `${customerDetails.walletBalance || 0} wallet`}
+                                                </span>
+                                            </div>
+                                            {!customerDetails.isGuest && (
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={walletAmount}
+                                                        onChange={(e) => setWalletAmount(e.target.value)}
+                                                        className="w-32 px-3 py-2 rounded-lg border border-purple-200 text-sm"
+                                                        placeholder="Add wallet"
+                                                    />
+                                                    <button
+                                                        onClick={handleAddWallet}
+                                                        className="px-3 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700"
+                                                    >
+                                                        Add
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 

@@ -49,6 +49,7 @@ export default function StoreCouponsPage() {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
             const data = await res.json();
+            console.log('Fetched coupons:', data);
             if (data.coupons) {
                 setCoupons(data.coupons);
             }
@@ -87,6 +88,9 @@ export default function StoreCouponsPage() {
 
             const method = editingCoupon ? 'PUT' : 'POST';
             const token = await getToken();
+            
+            console.log('Submitting coupon:', { url, method, formData });
+            
             const res = await fetch(url, {
                 method,
                 headers: {
@@ -97,6 +101,8 @@ export default function StoreCouponsPage() {
             });
 
             const data = await res.json();
+            
+            console.log('Response:', { status: res.status, data });
 
             if (res.ok) {
                 alert(editingCoupon ? 'Coupon updated!' : 'Coupon created!');
@@ -105,11 +111,12 @@ export default function StoreCouponsPage() {
                 resetForm();
                 fetchCoupons();
             } else {
+                console.error('Save failed:', data);
                 alert(data.error || 'Failed to save coupon');
             }
         } catch (error) {
             console.error('Error saving coupon:', error);
-            alert('Failed to save coupon');
+            alert('Failed to save coupon: ' + error.message);
         } finally {
             setSubmitting(false);
         }
@@ -143,9 +150,13 @@ export default function StoreCouponsPage() {
     // Handle toggle active status
     const handleToggleActive = async (coupon) => {
         try {
+            const token = await getToken();
             const res = await fetch(`/api/store/coupon/${coupon.code}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ isActive: !coupon.isActive })
             })
 
@@ -165,18 +176,18 @@ export default function StoreCouponsPage() {
         setFormData({
             code: coupon.code,
             description: coupon.description,
-            discount: coupon.discount.toString(),
+            discount: (coupon.discount || coupon.discountValue || '').toString(),
             discountType: coupon.discountType,
-            minPrice: coupon.minPrice?.toString() || '',
+            minPrice: (coupon.minPrice || coupon.minOrderValue || '').toString(),
             minProductCount: coupon.minProductCount?.toString() || '',
             specificProducts: coupon.specificProducts || [],
-            forNewUser: coupon.forNewUser,
-            forMember: coupon.forMember,
-            firstOrderOnly: coupon.firstOrderOnly,
-            oneTimePerUser: coupon.oneTimePerUser,
-            usageLimit: coupon.usageLimit?.toString() || '',
-            isPublic: coupon.isPublic,
-            expiresAt: new Date(coupon.expiresAt).toISOString().slice(0, 16)
+            forNewUser: coupon.forNewUser || false,
+            forMember: coupon.forMember || false,
+            firstOrderOnly: coupon.firstOrderOnly || false,
+            oneTimePerUser: coupon.oneTimePerUser || false,
+            usageLimit: (coupon.usageLimit || coupon.maxUses || '').toString(),
+            isPublic: coupon.isPublic !== undefined ? coupon.isPublic : true,
+            expiresAt: coupon.expiresAt ? new Date(coupon.expiresAt).toISOString().slice(0, 16) : ''
         })
         setShowModal(true)
     }
@@ -274,17 +285,17 @@ export default function StoreCouponsPage() {
                                     ) : (
                                         <span className="text-2xl font-bold">{currency}</span>
                                     )}
-                                    <span className="text-3xl font-bold">{coupon.discount}</span>
-                                    <span className="text-lg">{coupon.discountType === 'percentage' ? 'OFF' : 'OFF'}</span>
+                                    <span className="text-3xl font-bold">{coupon.discount || coupon.discountValue || 0}</span>
+                                    <span className="text-lg">OFF</span>
                                 </div>
                             </div>
 
                             {/* Details */}
                             <div className="space-y-2 text-sm mb-4">
-                                {coupon.minPrice > 0 && (
+                                {(coupon.minPrice > 0 || coupon.minOrderValue > 0) && (
                                     <div className="flex items-center gap-2 text-gray-600">
                                         <DollarSignIcon size={16} />
-                                        <span>Min: {currency}{coupon.minPrice}</span>
+                                        <span>Min: {currency}{coupon.minPrice || coupon.minOrderValue || 0}</span>
                                     </div>
                                 )}
                                 {coupon.minProductCount && (
@@ -293,10 +304,10 @@ export default function StoreCouponsPage() {
                                         <span>Min {coupon.minProductCount} products</span>
                                     </div>
                                 )}
-                                {coupon.usageLimit && (
+                                {(coupon.usageLimit || coupon.maxUses) && (
                                     <div className="flex items-center gap-2 text-gray-600">
                                         <UserIcon size={16} />
-                                        <span>Used {coupon.usedCount}/{coupon.usageLimit}</span>
+                                        <span>Used {coupon.usedCount || 0}/{coupon.usageLimit || coupon.maxUses}</span>
                                     </div>
                                 )}
                                 <div className="flex items-center gap-2 text-gray-600">

@@ -22,7 +22,7 @@ export async function GET(request) {
     }
 
     const coins = Number(wallet.coins || 0);
-    const rupeesValue = Number((coins * 0.5).toFixed(2));
+    const rupeesValue = Number((coins * 1).toFixed(2));
 
     return NextResponse.json({
       coins,

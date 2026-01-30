@@ -42,33 +42,34 @@ export default function HomeCategories() {
   return (
     // Desktop: arrows hidden, Mobile: arrows visible
     // using hidden md:block or block md:hidden classes as needed
-    <div className="relative w-full max-w-[1250px] mx-auto bg-white-100 py-4 px-2">
+    <div className="relative w-full max-w-[1250px] mx-auto bg-white py-4 px-2">
       {/* Left Arrow */}
       <button
-        className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 bg-white shadow-md rounded-full p-2 z-10"
+        className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 bg-white shadow-md rounded-full p-2 z-10 hover:bg-gray-100 transition"
         onClick={scrollLeft}
       >
-        <ChevronLeft />
+        <ChevronLeft size={20} />
       </button>
 
       {/* Scrollable Row */}
       <div
         ref={scrollRef}
-        className="px-3 md:px-4 items-center gap-3 md:gap-4 flex md:flex-row md:justify-between overflow-x-auto md:overflow-visible scrollbar-hide"
+        className="flex gap-4 md:gap-6 overflow-x-auto md:overflow-visible scrollbar-hide px-12 md:px-4 md:justify-between"
+        style={{ scrollSnapType: 'x mandatory' }}
       >
         {categories.map((cat, idx) => (
           <Link
             key={cat.label + '-' + idx}
             href={cat.link}
-            className="flex flex-col items-center min-w-[20vw] max-w-[22vw] md:min-w-0 md:w-full cursor-pointer hover:bg-blue-50 hover:scale-105 transition-all duration-200 rounded-2xl p-2 md:p-3 -m-2 md:-m-3"
+            className="flex flex-col items-center flex-shrink-0 w-20 md:flex-1 cursor-pointer hover:bg-blue-50 hover:scale-105 transition-all duration-200 rounded-2xl p-2 md:p-3"
+            style={{ scrollSnapAlign: 'start' }}
           >
-            <div className="relative">
+            <div className="relative w-16 h-16 md:w-20 md:h-20">
               <Image 
                 src={cat.img} 
                 alt={cat.label} 
-                width={60} 
-                height={60} 
-                className="object-contain md:w-[80px] md:h-[80px]" 
+                fill
+                className="object-contain" 
               />
               {cat.badge && (
                 <span className="absolute left-1/2 -translate-x-1/2 -top-3 bg-blue-600 text-xs md:text-sm text-white px-3 py-1 rounded-full font-bold shadow-md z-50 border-2 border-white">
@@ -76,7 +77,7 @@ export default function HomeCategories() {
                 </span>
               )}
             </div>
-            <span className="mt-2 text-[11px] sm:text-sm md:text-base text-center font-medium line-clamp-2 leading-tight">
+            <span className="mt-2 text-[10px] sm:text-xs md:text-sm text-center font-medium line-clamp-2 leading-tight w-full">
               {cat.label} {cat.hasDropdown && <span>&#9660;</span>}
             </span>
           </Link>
@@ -86,9 +87,9 @@ export default function HomeCategories() {
       {/* Right Arrow */}
       <button
         onClick={scrollRight}
-        className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 bg-white shadow-md rounded-full p-2 z-10"
+        className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 bg-white shadow-md rounded-full p-2 z-10 hover:bg-gray-100 transition"
       >
-        <ChevronRight />
+        <ChevronRight size={20} />
       </button>
     </div>
   );

@@ -111,8 +111,8 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
 
-        // Find the order
-        const order = await Order.findById(orderId).lean();
+        // Find the order (get Mongoose document, not plain object)
+        const order = await Order.findById(orderId).exec();
         if (!order) {
             return NextResponse.json({ error: 'Order not found' }, { status: 404 });
         }

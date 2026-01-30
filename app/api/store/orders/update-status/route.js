@@ -52,8 +52,8 @@ export async function POST(request) {
         // Connect to database
         await dbConnect();
 
-        // Find and update order
-        const order = await Order.findById(orderId);
+        // Find and update order (ensure we get a Mongoose document, not a plain object)
+        const order = await Order.findById(orderId).exec();
         if (!order) {
             return NextResponse.json({ error: 'Order not found' }, { status: 404 });
         }
@@ -79,15 +79,15 @@ export async function POST(request) {
 
         const normalizedStatus = String(status || '').toUpperCase();
         if (normalizedStatus === 'DELIVERED' && order.userId && !order.rewardsCredited) {
-            const orderTotal = Number(order.total || 0);
-            const coinsEarned = Math.floor(orderTotal / 10);
+            // Earn 5 coins per ₹100 spent (5% earning rate)
+            const coinsEarned = Math.floor((order.total || 0) * 0.05);
 
             if (coinsEarned > 0) {
                 await Wallet.findOneAndUpdate(
                     { userId: order.userId },
                     {
                         $inc: { coins: coinsEarned },
-                        $push: { transactions: { type: 'EARN', coins: coinsEarned, rupees: Number((coinsEarned * 0.5).toFixed(2)), orderId: order._id.toString() } }
+                        $push: { transactions: { type: 'EARN', coins: coinsEarned, rupees: Number((coinsEarned * 1).toFixed(2)), orderId: order._id.toString() } }
                     },
                     { upsert: true, new: true }
                 );
