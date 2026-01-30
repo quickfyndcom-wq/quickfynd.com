@@ -64,7 +64,23 @@ export default function StoreLogin() {
       }
     } catch (error) {
       console.error('Login error:', error)
-      toast.error(error.message || 'Invalid credentials')
+      let errorMessage = 'Invalid credentials';
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email.';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password. Please try again.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (error.code === 'auth/user-disabled') {
+        errorMessage = 'This account has been disabled.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (error.message) {
+        errorMessage = error.message.replace('Firebase: Error', '').replace(/\(.*?\)/g, '').trim() || 'Invalid credentials';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false)
     }
@@ -93,7 +109,21 @@ export default function StoreLogin() {
       }
     } catch (error) {
       console.error('Google login error:', error)
-      toast.error(error.message || 'Login failed')
+      let errorMessage = 'Login failed';
+      
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-in cancelled. Please try again.';
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = 'Pop-up blocked. Please allow pop-ups and try again.';
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = 'Sign-in cancelled. Please try again.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (error.message) {
+        errorMessage = error.message.replace('Firebase: Error', '').replace(/\(.*?\)/g, '').trim() || 'Login failed';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false)
     }

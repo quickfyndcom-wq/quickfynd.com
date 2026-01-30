@@ -21,7 +21,19 @@ export default function SignInClient() {
       await signInWithPopup(auth, googleProvider)
       router.push(redirect)
     } catch (err) {
-      alert('Sign-in failed: ' + (err?.message || err))
+      let errorMessage = 'Sign-in failed';\n      \n      if (err.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-in cancelled. Please try again.';
+      } else if (err.code === 'auth/popup-blocked') {
+        errorMessage = 'Pop-up blocked. Please allow pop-ups and try again.';
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        errorMessage = 'Sign-in cancelled. Please try again.';
+      } else if (err.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (err.message) {
+        errorMessage = err.message.replace('Firebase: Error', '').replace(/\\(.*?\\)/g, '').trim() || 'Sign-in failed';
+      }
+      
+      alert(errorMessage);
     }
   }
 

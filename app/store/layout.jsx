@@ -46,7 +46,21 @@ export default function RootAdminLayout({ children }) {
                 const provider = new GoogleAuthProvider();
                 await signInWithPopup(auth, provider);
             } catch (error) {
-                alert('Sign in failed: ' + error.message);
+                let errorMessage = 'Sign in failed';
+                
+                if (error.code === 'auth/popup-closed-by-user') {
+                    errorMessage = 'Sign-in cancelled. Please try again.';
+                } else if (error.code === 'auth/popup-blocked') {
+                    errorMessage = 'Pop-up blocked. Please allow pop-ups and try again.';
+                } else if (error.code === 'auth/cancelled-popup-request') {
+                    errorMessage = 'Sign-in cancelled. Please try again.';
+                } else if (error.code === 'auth/network-request-failed') {
+                    errorMessage = 'Network error. Please check your connection.';
+                } else if (error.message) {
+                    errorMessage = error.message.replace('Firebase: Error', '').replace(/\\(.*?\\)/g, '').trim() || 'Sign in failed';
+                }
+                
+                alert(errorMessage);
             }
         };
         return (

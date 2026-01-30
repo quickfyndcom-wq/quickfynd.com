@@ -12,12 +12,13 @@ export default function CustomerLocationAnalytics() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, today, week, month
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     fetchLocationData();
     const intervalId = setInterval(() => {
       fetchLocationData();
-    }, 30000);
+    }, 5000);
 
     return () => clearInterval(intervalId);
   }, [filter]);
@@ -167,6 +168,7 @@ export default function CustomerLocationAnalytics() {
           <table className="w-full text-sm">
             <thead className="bg-gray-100 border-b border-gray-300">
               <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Location</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Device</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Browser</th>
@@ -175,8 +177,11 @@ export default function CustomerLocationAnalytics() {
               </tr>
             </thead>
             <tbody>
-              {locations.slice(0, 20).map((loc, idx) => (
+              {locations.slice(0, showAll ? locations.length : 10).map((loc, idx) => (
                 <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-900 font-medium">
+                    {loc.userEmail || 'Guest'}
+                  </td>
                   <td className="px-4 py-3 text-gray-900">
                     {loc.city}, {loc.state}, {loc.country}
                   </td>
@@ -194,6 +199,16 @@ export default function CustomerLocationAnalytics() {
         {locations.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             No location data available for this period
+          </div>
+        )}
+        {locations.length > 10 && (
+          <div className="flex justify-center">
+            <button
+              onClick={() => setShowAll(!showAll)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {showAll ? 'Show Less' : `Show More (${locations.length - 10} more)`}
+            </button>
           </div>
         )}
       </div>

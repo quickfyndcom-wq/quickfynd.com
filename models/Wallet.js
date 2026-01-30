@@ -1,10 +1,12 @@
 import mongoose from "mongoose";
 
 const WalletTransactionSchema = new mongoose.Schema({
-  type: { type: String, enum: ["EARN", "REDEEM"], required: true },
+  type: { type: String, enum: ["EARN", "REDEEM", "ADMIN_CREDIT", "ADMIN_DEDUCT", "BONUS"], required: true },
   coins: { type: Number, required: true },
   rupees: { type: Number, required: true },
   orderId: { type: String },
+  description: { type: String },
+  addedBy: { type: String }, // Store admin ID if manually added/deducted
   createdAt: { type: Date, default: Date.now }
 }, { _id: false });
 

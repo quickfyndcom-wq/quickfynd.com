@@ -132,9 +132,11 @@ export async function GET(request, { params }) {
         const averageOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
 
         let walletBalance = 0;
+        let walletTransactions = [];
         if (!isGuest) {
             const wallet = await Wallet.findOne({ userId: customerId }).lean();
             walletBalance = Number(wallet?.coins || 0);
+            walletTransactions = wallet?.transactions || [];
         }
 
         const customerDetails = {
@@ -146,7 +148,8 @@ export async function GET(request, { params }) {
             lastOrderDate: ordersWithItems.length > 0 ? ordersWithItems[0].createdAt : null,
             orders: ordersWithItems,
             abandonedCart,
-            walletBalance
+            walletBalance,
+            walletTransactions
         };
 
         return NextResponse.json({ customer: customerDetails });

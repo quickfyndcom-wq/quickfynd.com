@@ -100,7 +100,21 @@ const SignInModal = ({ open, onClose, defaultMode = 'login', bonusMessage = '' }
       onClose();
     } catch (err) {
       console.error('Google sign-in error:', err);
-      setError(err?.message || 'Google sign-in failed');
+      let errorMessage = 'Google sign-in failed';
+      
+      if (err.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-in cancelled. Please try again.';
+      } else if (err.code === 'auth/popup-blocked') {
+        errorMessage = 'Pop-up blocked. Please allow pop-ups and try again.';
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        errorMessage = 'Sign-in cancelled. Please try again.';
+      } else if (err.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (err.message) {
+        errorMessage = err.message.replace('Firebase: Error', '').replace(/\(.*?\)/g, '').trim() || 'Google sign-in failed';
+      }
+      
+      setError(errorMessage);
     }
     setLoading(false);
   };

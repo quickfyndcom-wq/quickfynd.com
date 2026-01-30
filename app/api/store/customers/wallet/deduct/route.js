@@ -31,33 +31,39 @@ export async function POST(request) {
     }
 
     const { userId, amount } = await request.json();
-    const coinsToAdd = Number(amount);
+    const coinsToDeduct = Number(amount);
 
-    if (!userId || !Number.isFinite(coinsToAdd) || coinsToAdd <= 0) {
-      return NextResponse.json({ error: "Invalid wallet amount" }, { status: 400 });
+    if (!userId || !Number.isFinite(coinsToDeduct) || coinsToDeduct <= 0) {
+      return NextResponse.json({ error: "Invalid deduction amount" }, { status: 400 });
     }
 
-    const wallet = await Wallet.findOneAndUpdate(
+    // Check current balance
+    const wallet = await Wallet.findOne({ userId }).lean();
+    if (!wallet || wallet.coins < coinsToDeduct) {
+      return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 400 });
+    }
+
+    const updatedWallet = await Wallet.findOneAndUpdate(
       { userId },
       {
-        $inc: { coins: coinsToAdd },
-        $push: { 
-          transactions: { 
-            type: "ADMIN_CREDIT", 
-            coins: coinsToAdd, 
-            rupees: Number((coinsToAdd * 1).toFixed(2)), 
-            description: "Added by store admin",
+        $inc: { coins: -coinsToDeduct },
+        $push: {
+          transactions: {
+            type: "ADMIN_DEDUCT",
+            coins: coinsToDeduct,
+            rupees: Number((coinsToDeduct * 1).toFixed(2)),
+            description: "Deducted by store admin",
             addedBy: sellerId,
             orderId: null
-          } 
+          }
         }
       },
-      { upsert: true, new: true }
+      { new: true }
     ).lean();
 
     return NextResponse.json({
-      message: "Wallet updated",
-      walletBalance: Number(wallet?.coins || 0)
+      message: "Wallet deducted",
+      walletBalance: Number(updatedWallet?.coins || 0)
     });
   } catch (error) {
     return NextResponse.json({ error: error.code || error.message }, { status: 400 });

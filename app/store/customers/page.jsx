@@ -23,6 +23,8 @@ export default function CustomersPage() {
     const [detailsLoading, setDetailsLoading] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [walletAmount, setWalletAmount] = useState('')
+    const [walletDeductAmount, setWalletDeductAmount] = useState('')
+    const [viewMode, setViewMode] = useState('all') // 'all' or 'registered'
 
     const fetchCustomers = async () => {
         try {
@@ -78,6 +80,37 @@ export default function CustomersPage() {
         }
     }
 
+    const handleDeductWallet = async () => {
+        if (!customerDetails || customerDetails.isGuest) {
+            toast.error('Wallet not available for guest customers')
+            return
+        }
+        const amount = Number(walletDeductAmount)
+        if (!Number.isFinite(amount) || amount <= 0) {
+            toast.error('Enter a valid deduction amount')
+            return
+        }
+        if (amount > customerDetails.walletBalance) {
+            toast.error('Deduction amount exceeds wallet balance')
+            return
+        }
+        try {
+            const token = await getToken()
+            const { data } = await axios.post('/api/store/customers/wallet/deduct', {
+                userId: customerDetails._id,
+                amount
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            setCustomerDetails(prev => prev ? { ...prev, walletBalance: data.walletBalance } : prev)
+            setCustomers(prev => prev.map(c => (c.id === customerDetails._id ? { ...c, walletBalance: data.walletBalance } : c)))
+            setWalletDeductAmount('')
+            toast.success('Wallet deducted')
+        } catch (error) {
+            toast.error(error?.response?.data?.error || error.message)
+        }
+    }
+
     const handleCustomerClick = (customer) => {
         setSelectedCustomer(customer)
         setWalletAmount('')
@@ -94,10 +127,17 @@ export default function CustomersPage() {
     }, [])
 
     // Filter customers based on search query
-    const filteredCustomers = customers.filter(customer =>
-        customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    const filteredCustomers = customers.filter(customer => {
+        const matchesSearch = customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            customer.email?.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        if (viewMode === 'registered') {
+            return matchesSearch && customer.email && !customer.isGuest;
+        }
+        return matchesSearch;
+    });
+
+    const registeredCount = customers.filter(c => c.email && !c.isGuest).length;
 
     if (loading) return <Loading />
 
@@ -110,9 +150,40 @@ export default function CustomersPage() {
                         <h1 className="text-3xl font-bold text-slate-900">Customers</h1>
                         <p className="text-slate-600 mt-1">Manage and track your customer relationships</p>
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 px-6 py-4">
-                        <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{customers.length}</p>
-                        <p className="text-xs text-slate-500 mt-1">Total Customers</p>
+                    <div className="flex items-center gap-4">
+                        {/* Toggle Buttons */}
+                        <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1">
+                            <button
+                                onClick={() => setViewMode('all')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                    viewMode === 'all'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                All Customers
+                            </button>
+                            <button
+                                onClick={() => setViewMode('registered')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                    viewMode === 'registered'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                Registered
+                            </button>
+                        </div>
+                        
+                        {/* Count Badge */}
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 px-6 py-4">
+                            <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                {viewMode === 'all' ? customers.length : registeredCount}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                {viewMode === 'all' ? 'Total Customers' : 'Registered'}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -162,7 +233,9 @@ export default function CustomersPage() {
                                             {customer.name?.charAt(0).toUpperCase() || 'U'}
                                         </div>
                                     )}
-                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                                    {!customer.isGuest && (
+                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" title="Registered Account"></div>
+                                    )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className="font-semibold text-slate-900 truncate group-hover:text-blue-600 transition-colors">{customer.name}</h3>
@@ -170,6 +243,11 @@ export default function CustomersPage() {
                                         <Mail size={11} />
                                         {customer.email}
                                     </p>
+                                    {!customer.isGuest && (
+                                        <span className="inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700 mt-1">
+                                            REGISTERED
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -275,14 +353,20 @@ export default function CustomersPage() {
                                         <Mail size={16} />
                                         {selectedCustomer.isGuest ? 'No email (Guest)' : selectedCustomer.email}
                                     </p>
+                                    {!selectedCustomer.isGuest && (
+                                        <div className="mt-2 inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs">
+                                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                            <span>Registered Account</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
                         {/* Modal Content */}
-                        <div className="p-8 overflow-y-auto max-h-[calc(90vh-180px)]">
+                        <div className="p-8 overflow-y-auto max-h-[calc(90vh-200px)] min-h-[300px]">
                             {detailsLoading ? (
-                                <div className="text-center py-12">
+                                <div className="text-center py-12 flex items-center justify-center min-h-[300px]">
                                     <Loading />
                                 </div>
                             ) : customerDetails ? (
@@ -331,22 +415,41 @@ export default function CustomersPage() {
                                                 </span>
                                             </div>
                                             {!customerDetails.isGuest && (
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="number"
-                                                        min={0}
-                                                        value={walletAmount}
-                                                        onChange={(e) => setWalletAmount(e.target.value)}
-                                                        className="w-32 px-3 py-2 rounded-lg border border-purple-200 text-sm"
-                                                        placeholder="Add wallet"
-                                                    />
-                                                    <button
-                                                        onClick={handleAddWallet}
-                                                        className="px-3 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700"
-                                                    >
-                                                        Add
-                                                    </button>
-                                                </div>
+                                                <>
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={walletAmount}
+                                                            onChange={(e) => setWalletAmount(e.target.value)}
+                                                            className="flex-1 px-3 py-2 rounded-lg border border-purple-200 text-sm"
+                                                            placeholder="Add amount"
+                                                        />
+                                                        <button
+                                                            onClick={handleAddWallet}
+                                                            className="px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors"
+                                                        >
+                                                            +Add
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            max={customerDetails.walletBalance || 0}
+                                                            value={walletDeductAmount}
+                                                            onChange={(e) => setWalletDeductAmount(e.target.value)}
+                                                            className="flex-1 px-3 py-2 rounded-lg border border-purple-200 text-sm"
+                                                            placeholder="Deduct amount"
+                                                        />
+                                                        <button
+                                                            onClick={handleDeductWallet}
+                                                            className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
+                                                        >
+                                                            -Deduct
+                                                        </button>
+                                                    </div>
+                                                </>
                                             )}
                                         </div>
                                     </div>
@@ -367,6 +470,70 @@ export default function CustomersPage() {
                                                         Last updated: {new Date(customerDetails.abandonedCart.lastUpdated).toLocaleString()}
                                                     </p>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Wallet Transaction History */}
+                                    {!customerDetails.isGuest && customerDetails.walletTransactions && customerDetails.walletTransactions.length > 0 && (
+                                        <div className="mb-8">
+                                            <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                                <div className="w-1 h-6 bg-gradient-to-b from-purple-600 to-pink-600 rounded-full"></div>
+                                                Wallet Transaction History
+                                            </h3>
+                                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                                                <table className="w-full text-sm">
+                                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                                        <tr>
+                                                            <th className="px-4 py-3 text-left font-semibold text-slate-700">Date</th>
+                                                            <th className="px-4 py-3 text-left font-semibold text-slate-700">Type</th>
+                                                            <th className="px-4 py-3 text-left font-semibold text-slate-700">Description</th>
+                                                            <th className="px-4 py-3 text-right font-semibold text-slate-700">Amount</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {customerDetails.walletTransactions.slice().reverse().map((txn, idx) => (
+                                                            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                                                                <td className="px-4 py-3 text-slate-700">
+                                                                    {new Date(txn.createdAt).toLocaleString('en-US', { 
+                                                                        month: 'short', 
+                                                                        day: 'numeric', 
+                                                                        year: 'numeric',
+                                                                        hour: '2-digit',
+                                                                        minute: '2-digit'
+                                                                    })}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                                                                        txn.type === 'EARN' || txn.type === 'ADMIN_CREDIT' || txn.type === 'BONUS' 
+                                                                            ? 'bg-green-100 text-green-700' 
+                                                                            : 'bg-red-100 text-red-700'
+                                                                    }`}>
+                                                                        {txn.type === 'ADMIN_CREDIT' ? 'Admin Credit' : 
+                                                                         txn.type === 'BONUS' ? 'Bonus' :
+                                                                         txn.type === 'EARN' ? 'Earned' : 'Spent'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-slate-700">
+                                                                    {txn.description || 
+                                                                     (txn.orderId ? `Order #${txn.orderId.slice(-8).toUpperCase()}` : 
+                                                                      txn.type === 'ADMIN_CREDIT' ? 'Added by admin' : 
+                                                                      'Wallet transaction')}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <span className={`font-semibold ${
+                                                                        txn.type === 'EARN' || txn.type === 'ADMIN_CREDIT' || txn.type === 'BONUS'
+                                                                            ? 'text-green-600' 
+                                                                            : 'text-red-600'
+                                                                    }`}>
+                                                                        {txn.type === 'EARN' || txn.type === 'ADMIN_CREDIT' || txn.type === 'BONUS' ? '+' : '-'}
+                                                                        {currency}{txn.coins}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
                                             </div>
                                         </div>
                                     )}

@@ -55,7 +55,13 @@ export async function GET(request) {
         const filtered = user.locations.filter(
           (loc) => new Date(loc.timestamp) >= startDate
         );
-        allLocations.push(...filtered);
+        // Add user email to each location
+        const locationsWithEmail = filtered.map(loc => ({
+          ...loc.toObject(),
+          userEmail: user.email || 'Guest',
+          userId: user._id
+        }));
+        allLocations.push(...locationsWithEmail);
       }
     });
 

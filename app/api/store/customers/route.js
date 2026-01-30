@@ -33,6 +33,15 @@ export async function GET(request) {
         console.log('[customers API] Authenticated user:', userId);
         console.log('[customers API] Store ID:', storeId);
 
+        // Get all registered users (who created accounts)
+        const registeredUsers = await User.find({ 
+            email: { $exists: true, $ne: null, $ne: '' }
+        })
+        .select('_id name email image createdAt')
+        .lean();
+
+        console.log('[customers API] Registered users found:', registeredUsers.length);
+
         // Get all orders for this store
         const orders = await Order.find({ storeId })
             .populate({
@@ -127,6 +136,28 @@ export async function GET(request) {
 
         // Convert map to array and sort by total spent (descending)
         const customers = Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
+
+        // Add registered users who haven't placed orders yet
+        const customerIds = new Set(customers.map(c => c.id.toString()));
+        registeredUsers.forEach(user => {
+            const userId = user._id.toString();
+            if (!customerIds.has(userId)) {
+                // Add user who hasn't ordered yet
+                customers.push({
+                    _id: userId,
+                    id: userId,
+                    name: user.name || 'User',
+                    email: user.email,
+                    image: user.image,
+                    isGuest: false,
+                    totalOrders: 0,
+                    totalSpent: 0,
+                    firstOrderDate: user.createdAt,
+                    lastOrderDate: user.createdAt,
+                    orders: []
+                });
+            }
+        });
 
         // Attach wallet balance for registered users
         const userIds = customers
