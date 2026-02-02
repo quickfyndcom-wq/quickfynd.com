@@ -1,17 +1,38 @@
 import { NextResponse } from 'next/server'
 import connectDB from '@/lib/mongodb'
 import Store from '@/models/Store'
+import Product from '@/models/Product'
 
 export async function GET(request) {
     try {
         await connectDB()
 
+        const { searchParams } = new URL(request.url)
+        const includeProducts = searchParams.get('includeProducts') === 'true'
+        const limit = Number(searchParams.get('limit') || 0)
+
         // Public: get the first (or only) store's featured products
         // Optionally, you can filter by domain, subdomain, or query param for multi-store setups
         const store = await Store.findOne().select('featuredProductIds')
+        const productIds = store?.featuredProductIds || []
+
+        if (!includeProducts) {
+            return NextResponse.json({
+                productIds
+            })
+        }
+
+        const productsRaw = await Product.find({ _id: { $in: productIds } }).lean()
+        const productMap = new Map(productsRaw.map((product) => [product._id.toString(), product]))
+        let products = productIds.map((id) => productMap.get(id)).filter(Boolean)
+
+        if (limit > 0) {
+            products = products.slice(0, limit)
+        }
 
         return NextResponse.json({
-            productIds: store?.featuredProductIds || []
+            productIds,
+            products
         })
     } catch (error) {
         console.error('Error fetching featured products:', error)

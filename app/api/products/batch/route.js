@@ -1,5 +1,6 @@
 import connectDB from "@/lib/mongodb";
 import Product from "@/models/Product";
+import { NextResponse } from "next/server";
 
 export async function POST(req) {
     try {
@@ -7,16 +8,26 @@ export async function POST(req) {
         const { productIds } = await req.json();
 
         if (!productIds || !Array.isArray(productIds)) {
-            return Response.json({ error: 'Invalid product IDs' }, { status: 400 });
+            return NextResponse.json({ error: 'Invalid product IDs' }, { status: 400 });
+        }
+
+        if (productIds.length === 0) {
+            return NextResponse.json({ products: [] });
         }
 
         const products = await Product.find({ _id: { $in: productIds } })
-            .select('name slug price mrp images category categories inStock fastDelivery imageAspectRatio')
+            .select('name slug price mrp images category categories inStock fastDelivery imageAspectRatio shortDescription sku hasVariants variants allowReturn allowReplacement')
             .lean();
 
-        return Response.json({ products });
+        // Preserve order of productIds in response
+        const productMap = new Map(products.map(p => [p._id.toString(), p]));
+        const orderedProducts = productIds
+            .map(id => productMap.get(id))
+            .filter(Boolean);
+
+        return NextResponse.json({ products: orderedProducts });
     } catch (error) {
         console.error('Error fetching products:', error);
-        return Response.json({ error: 'Failed to fetch products' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
     }
 }
