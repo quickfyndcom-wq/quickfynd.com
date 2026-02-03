@@ -56,7 +56,7 @@ export async function GET(request) {
             { $limit: limit }
         ];
 
-        let products = await Product.aggregate(aggregationPipeline).lean().exec();
+        let products = await Product.aggregate(aggregationPipeline).exec();
         
         // Get total count separately (more efficient)
         const countPipeline = [

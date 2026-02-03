@@ -122,7 +122,7 @@ export async function GET(request){
             { $limit: limit }
         ];
 
-        const products = await Product.aggregate(aggregationPipeline).lean().exec();
+        const products = await Product.aggregate(aggregationPipeline).exec();
 
         // FIX N+1: Batch fetch all ratings in ONE query
         const productIds = products.map(p => String(p._id));
