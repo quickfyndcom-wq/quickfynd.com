@@ -114,33 +114,7 @@ export async function GET(request){
                     stockQuantity: 1,
                     imageAspectRatio: 1,
                     createdAt: 1,
-                    discount: 1,
-                    label: 1,
-                    labelType: 1
-                }
-            },
-            { 
-                $addFields: {
-                    label: {
-                        $cond: [
-                            { $gte: ['$discount', 50] },
-                            { $concat: ['Min. ', { $toString: '$discount' }, '% Off'] },
-                            {
-                                $cond: [
-                                    { $gt: ['$discount', 0] },
-                                    { $concat: [{ $toString: '$discount' }, '% Off'] },
-                                    null
-                                ]
-                            }
-                        ]
-                    },
-                    labelType: {
-                        $cond: [
-                            { $gt: ['$discount', 0] },
-                            'offer',
-                            null
-                        ]
-                    }
+                    discount: 1
                 }
             },
             { $sort: { createdAt: -1 } },
@@ -172,8 +146,21 @@ export async function GET(request){
                 const ratingCount = reviews.length;
                 const averageRating = ratingCount > 0 ? (reviews.reduce((sum, r) => sum + r, 0) / ratingCount) : 0;
 
+                // Calculate label and labelType in JavaScript (simpler than MongoDB)
+                let label = null;
+                let labelType = null;
+                if (product.discount && product.discount >= 50) {
+                    label = `Min. ${product.discount}% Off`;
+                    labelType = 'offer';
+                } else if (product.discount && product.discount > 0) {
+                    label = `${product.discount}% Off`;
+                    labelType = 'offer';
+                }
+
                 return {
                     ...product,
+                    label,
+                    labelType,
                     ratingCount,
                     averageRating
                 };
@@ -181,6 +168,8 @@ export async function GET(request){
                 console.error('Error enriching product:', err);
                 return {
                     ...product,
+                    label: null,
+                    labelType: null,
                     ratingCount: 0,
                     averageRating: 0
                 };
