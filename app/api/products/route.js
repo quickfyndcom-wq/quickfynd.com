@@ -3,6 +3,7 @@ import Product from "@/models/Product";
 import Rating from "@/models/Rating";
 import Category from "@/models/Category";
 import { NextResponse } from "next/server";
+import { getCachedData, setCachedData, generateCacheKey } from "@/lib/cache";
 
 export async function POST(request) {
     try {
@@ -62,6 +63,18 @@ export async function GET(request){
         const offset = parseInt(searchParams.get('offset') || '0', 10);
         const fastDelivery = searchParams.get('fastDelivery');
         
+        // CHECK CACHE FIRST - Skip MongoDB if cached!
+        const cacheKey = generateCacheKey('products', { limit, offset, fastDelivery });
+        const cachedProducts = getCachedData(cacheKey);
+        if (cachedProducts) {
+            return NextResponse.json({ products: cachedProducts, fromCache: true }, {
+                headers: {
+                    'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+                    'X-Cache': 'HIT'
+                }
+            });
+        }
+
         // OPTIMIZED: Use MongoDB aggregation pipeline instead of find + populate
         const matchStage = { inStock: true };
         if (fastDelivery === 'true') {
@@ -176,9 +189,13 @@ export async function GET(request){
             }
         });
 
+        // CACHE RESULTS - Store in memory for 10 minutes
+        setCachedData(cacheKey, enrichedProducts, 600);
+
         return NextResponse.json({ products: enrichedProducts }, {
             headers: {
-                'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200' // 10 min cache, 20 min stale
+                'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200', // 10 min cache, 20 min stale
+                'X-Cache': 'MISS'
             }
         });
     } catch (error) {

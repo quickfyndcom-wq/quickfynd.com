@@ -3,6 +3,7 @@ import Product from "@/models/Product";
 import Rating from "@/models/Rating";
 import Category from "@/models/Category";
 import { NextResponse } from "next/server";
+import { getCachedData, setCachedData, generateCacheKey } from "@/lib/cache";
 
 export async function GET(request) {
     try {
@@ -12,6 +13,18 @@ export async function GET(request) {
         const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50); // Default 20, max 50
         const offset = parseInt(searchParams.get('offset') || '0', 10);
         
+        // CHECK CACHE FIRST - Skip MongoDB if cached!
+        const cacheKey = generateCacheKey('deals', { minDiscount, limit, offset });
+        const cachedResult = getCachedData(cacheKey);
+        if (cachedResult) {
+            return NextResponse.json(cachedResult, {
+                headers: {
+                    'Cache-Control': 'public, s-maxage=1200, stale-while-revalidate=2400',
+                    'X-Cache': 'HIT'
+                }
+            });
+        }
+
         // OPTIMIZED: Use MongoDB aggregation pipeline to filter discount at database level
         // Calculate discount percentage directly in MongoDB (much faster than JavaScript)
         const aggregationPipeline = [
