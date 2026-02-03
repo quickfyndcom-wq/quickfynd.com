@@ -19,7 +19,7 @@ function ProductsContent() {
 
     const [showFilters, setShowFilters] = useState(false)
     const [filters, setFilters] = useState({
-        category: categoryParam || '',
+        category: categoryParam || '', // Auto-apply category from URL
         categories: [],
         priceRange: [0, 100000],
         minRating: 0,
@@ -71,14 +71,29 @@ function ProductsContent() {
         // Only include products with a slug
         filtered = filtered.filter(p => p.slug && typeof p.slug === 'string' && p.slug.length > 0)
 
-        // Filter by category (single select - from URL param)
+        // Filter by category (single select - from URL param) - case insensitive and slug-aware
         if (filters.category) {
-            filtered = filtered.filter(p => p.category === filters.category)
+            filtered = filtered.filter(p => {
+                if (!p.category) return false;
+                const categoryLower = p.category.toLowerCase();
+                const filterLower = filters.category.toLowerCase();
+                
+                // Direct match or slug match (e.g., "men-s-fashion" matches "Men's Fashion")
+                const categorySlug = categoryLower.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                const filterSlug = filterLower.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                
+                return categoryLower === filterLower || 
+                       categorySlug === filterSlug ||
+                       categorySlug === filterLower ||
+                       categoryLower === filterSlug;
+            })
         }
 
-        // Filter by categories (multi-select checkboxes)
+        // Filter by categories (multi-select checkboxes) - case insensitive
         if (filters.categories.length > 0) {
-            filtered = filtered.filter(p => filters.categories.includes(p.category))
+            filtered = filtered.filter(p => 
+                p.category && filters.categories.some(cat => cat.toLowerCase() === p.category.toLowerCase())
+            )
         }
 
         // Filter by price range

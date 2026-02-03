@@ -8,7 +8,7 @@ import { useSelector } from "react-redux"
 function ShopContent() {
     const searchParams = useSearchParams();
     const search = searchParams.get('search');
-    const category = searchParams.get('category');
+    const categoryParam = searchParams.get('category');
     const router = useRouter();
     const products = useSelector(state => state.product.list);
     const loading = useSelector(state => state.product.loading);
@@ -51,45 +51,34 @@ function ShopContent() {
                 }
             }
 
-            // Category matching (from URL param)
-            if (category) {
-                // Get all category values (single category field + categories array)
+            // Filter by URL category parameter first - more flexible matching
+            if (categoryParam) {
                 const productCategories = [
                     product.category,
                     ...(Array.isArray(product.categories) ? product.categories : [])
                 ].filter(Boolean);
                 
-                // If no categories at all, skip this product
-                if (productCategories.length === 0) {
-                    return false;
-                }
+                // Normalize function: remove apostrophes, convert spaces/hyphens to empty, lowercase
+                const normalizeCategory = (str) => {
+                    if (!str || typeof str !== 'string') return '';
+                    return str.toLowerCase()
+                        .replace(/['\u2019`]/g, '') // remove apostrophes (straight and curly)
+                        .replace(/[\s\-_]+/g, ''); // remove spaces, hyphens, underscores
+                };
                 
-                const categorySlug = category.toLowerCase();
-                const normalizedSearchCat = categorySlug.replace(/-/g, ' ').replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
-                const searchWords = normalizedSearchCat.split(' ').filter(w => w.length > 0);
+                const urlCategoryNormalized = normalizeCategory(categoryParam);
                 
-                // Check if ANY of the product's categories match
-                const hasMatchingCategory = productCategories.some(prodCat => {
-                    const productCategory = prodCat.toLowerCase();
-                    const normalizedProductCat = productCategory.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
-                    const productCategorySlug = productCategory.replace(/[^\w\s]/g, '').replace(/\s+/g, '-').toLowerCase();
-                    const productWords = normalizedProductCat.split(' ').filter(w => w.length > 0);
+                const hasUrlCategory = productCategories.some(cat => {
+                    // Skip if category is an ObjectId (24 character hex string)
+                    if (typeof cat === 'string' && /^[a-f0-9]{24}$/i.test(cat)) {
+                        return false;
+                    }
                     
-                    // Strict matching strategies to avoid cross-category matches
-                    const exactMatch = productCategorySlug === categorySlug;
-                    const normalizedMatch = normalizedProductCat === normalizedSearchCat;
-                    
-                    // Check if all search words appear as full words in product category
-                    const allWordsMatch = searchWords.length > 0 && searchWords.every(searchWord => 
-                        productWords.some(productWord => productWord === searchWord)
-                    );
-                    
-                    return exactMatch || normalizedMatch || allWordsMatch;
+                    const catNormalized = normalizeCategory(cat);
+                    return catNormalized === urlCategoryNormalized;
                 });
                 
-                if (!hasMatchingCategory) {
-                    return false;
-                }
+                if (!hasUrlCategory) return false;
             }
 
             // Filter by selected categories from sidebar
@@ -123,7 +112,7 @@ function ShopContent() {
 
             return true;
         });
-    }, [activeFilters, search, category, levenshtein]);
+    }, [activeFilters, search, categoryParam]);
 
     // Apply sorting
     const sortProducts = useCallback((productsToSort) => {
@@ -156,73 +145,86 @@ function ShopContent() {
 
     const filteredAndSortedProducts = useMemo(() => {
         const filtered = applyFilters(products);
+        
+        // Debug: Log categories for troubleshooting
+        if (categoryParam) {
+            const allCategories = products.map(p => p.category).filter(Boolean);
+            const uniqueCategories = [...new Set(allCategories)];
+            console.log('🔍 Category Filter Debug:');
+            console.log('URL Category:', categoryParam);
+            console.log('Available categories in products:', uniqueCategories);
+            console.log('Sample product categories:', products.slice(0, 3).map(p => ({ name: p.name, category: p.category, type: typeof p.category })));
+            console.log('Filtered products count:', filtered.length);
+        }
+        
         return sortProducts(filtered);
-    }, [products, applyFilters, sortProducts]);
+    }, [products, applyFilters, sortProducts, categoryParam]);
 
     const handleFilterChange = useCallback((filters) => {
         setActiveFilters(filters);
     }, []);
 
-    const pageTitle = category 
-        ? category.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-        : 'All Products';
+    // Get display title
+    const pageTitle = useMemo(() => {
+        if (search) return `Search: ${search}`;
+        if (categoryParam) {
+            return categoryParam.split('-').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ');
+        }
+        return 'All Products';
+    }, [search, categoryParam]);
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-[1250px] mx-auto px-4 py-8">
+            <div className="max-w-[1400px] mx-auto px-4 py-8">
                 {/* Header */}
                 <div className="mb-6 mt-6">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                        {category ? `${pageTitle}` : search ? `Search: ${search}` : 'All Products'}
+                        {pageTitle}
                     </h1>
                     <p className="text-gray-600">
-                        {category ? `Browse our ${pageTitle} collection` : search ? `Results for "${search}"` : 'Discover our complete product collection'}
+                        {search ? `Results for "${search}"` : categoryParam ? `Browse ${pageTitle}` : 'Discover our complete product collection'}
                     </p>
                 </div>
 
                 <div className="flex gap-6">
                     {/* Filter Sidebar */}
-                    <div className="hidden lg:block flex-shrink-0">
-                        <ProductFilterSidebar 
-                            products={products} 
-                            onFilterChange={handleFilterChange}
-                        />
-                    </div>
-
+                    <ProductFilterSidebar 
+                        products={products}
+                        onFilterChange={handleFilterChange}
+                        initialFilters={activeFilters}
+                    />
+                    
                     {/* Products Grid */}
                     <div className="flex-1">
-                        {loading || products.length === 0 ? (
+                        {loading ? (
                             <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
                                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
                                 <p className="text-gray-500 text-lg">Loading products...</p>
                             </div>
                         ) : filteredAndSortedProducts.length === 0 ? (
                             <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
-                                <p className="text-gray-500 text-lg">No products match your filters.</p>
+                                <p className="text-gray-500 text-lg mb-2">No products found.</p>
+                                <p className="text-gray-400 text-sm mb-6">Try adjusting your filters or search terms</p>
                                 <button 
-                                    onClick={() => {
-                                        setActiveFilters({
-                                            categories: [],
-                                            priceRange: { min: 0, max: 100000 },
-                                            rating: 0,
-                                            inStock: false,
-                                            sortBy: 'popularity'
-                                        });
-                                        if (category || search) {
-                                            router.push('/shop');
-                                        }
-                                    }}
-                                    className="mt-4 px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+                                    onClick={() => router.push('/shop')}
+                                    className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
                                 >
-                                    Clear Filters
+                                    View All Products
                                 </button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
-                                {filteredAndSortedProducts.map((product) => (
-                                    <ProductCard key={product._id || product.id} product={product} />
-                                ))}
-                            </div>
+                            <>
+                                <div className="mb-4 text-sm text-gray-600">
+                                    Showing {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'product' : 'products'}
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+                                    {filteredAndSortedProducts.map((product) => (
+                                        <ProductCard key={product._id || product.id} product={product} />
+                                    ))}
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>

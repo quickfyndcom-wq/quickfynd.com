@@ -1,6 +1,7 @@
 import dbConnect from "@/lib/mongodb";
 import Product from "@/models/Product";
 import Rating from "@/models/Rating";
+import Category from "@/models/Category";
 import { NextResponse } from "next/server";
 
 export async function POST(request) {
@@ -57,7 +58,7 @@ export async function GET(request){
         await dbConnect();
         const { searchParams } = new URL(request.url);
         const sortBy = searchParams.get('sortBy');
-        const limit = parseInt(searchParams.get('limit') || '50', 10); // increased default
+        const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50); // Default 20, max 50
         const offset = parseInt(searchParams.get('offset') || '0', 10);
         const fastDelivery = searchParams.get('fastDelivery');
         
@@ -69,15 +70,32 @@ export async function GET(request){
         
         // Optimized query with field selection
         let products = await Product.find(query)
-            .select('name slug description shortDescription mrp price images category sku hasVariants variants attributes fastDelivery stockQuantity imageAspectRatio createdAt')
+            .select('name slug description shortDescription mrp price images category categories sku hasVariants variants attributes fastDelivery stockQuantity imageAspectRatio createdAt')
+            .populate('category', 'name slug') // Populate category with name and slug
             .sort({ createdAt: -1 })
             .skip(offset)
             .limit(limit)
             .lean()
             .exec();
 
-        // Add discount label and review stats if applicable
-        products = await Promise.all(products.map(async product => {
+        // FIX N+1: Batch fetch all ratings in ONE query (not per product)
+        const productIds = products.map(p => String(p._id));
+        const allRatings = await Rating.find({ 
+            productId: { $in: productIds }, 
+            approved: true 
+        }).select('productId rating').lean();
+        
+        // Create a map of productId -> ratings for O(1) lookup
+        const ratingsMap = {};
+        allRatings.forEach(review => {
+            if (!ratingsMap[review.productId]) {
+                ratingsMap[review.productId] = [];
+            }
+            ratingsMap[review.productId].push(review.rating);
+        });
+
+        // Add discount label and review stats - NO MORE INDIVIDUAL QUERIES!
+        products = products.map(product => {
             try {
                 let label = null;
                 let labelType = null;
@@ -92,13 +110,17 @@ export async function GET(request){
                     }
                 }
 
-                // Fetch review stats
-                const reviews = await Rating.find({ productId: String(product._id), approved: true }).select('rating').lean();
+                // Get cached ratings for this product - O(1) lookup!
+                const reviews = ratingsMap[String(product._id)] || [];
                 const ratingCount = reviews.length;
-                const averageRating = ratingCount > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / ratingCount) : 0;
+                const averageRating = ratingCount > 0 ? (reviews.reduce((sum, r) => sum + r, 0) / ratingCount) : 0;
+
+                // Transform populated category back to string name
+                const categoryName = product.category?.name || product.category || null;
 
                 return {
                     ...product,
+                    category: categoryName,
                     label,
                     labelType,
                     ratingCount,
@@ -106,8 +128,11 @@ export async function GET(request){
                 };
             } catch (err) {
                 console.error('Error mapping product review stats:', err);
+                const categoryName = product.category?.name || product.category || null;
+                
                 return {
                     ...product,
+                    category: categoryName,
                     label: null,
                     labelType: null,
                     ratingCount: 0,
@@ -115,7 +140,7 @@ export async function GET(request){
                     reviewError: err.message
                 };
             }
-        }));
+        });
 
         // Sort based on the sortBy parameter
         if (sortBy === 'orders') {
@@ -126,7 +151,7 @@ export async function GET(request){
 
         return NextResponse.json({ products }, {
             headers: {
-                'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120'
+                'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200' // 10 min cache, 20 min stale
             }
         });
     } catch (error) {

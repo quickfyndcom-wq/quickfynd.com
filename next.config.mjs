@@ -31,6 +31,8 @@ const nextConfig = {
         deviceSizes: [320, 420, 640, 768, 1024, 1280, 1536, 1920],
         imageSizes: [16, 32, 48, 64, 96, 128, 256, 384]
     },
+    // Enable response compression (gzip/brotli) to reduce payload size by 70%
+    compress: true,
     // Increase body size limit for product uploads with multiple images (up to 4MB per image)
     experimental: {
         serverActions: {
