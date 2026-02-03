@@ -16,6 +16,15 @@ const categorySchema = new mongoose.Schema({
   },
   description: String,
   image: String,
+  url: {
+    type: String,
+    required: false,
+    default: ''
+  },
+  storeId: {
+    type: String,
+    default: null
+  },
   parentId: {
     type: String,
     ref: 'Category',

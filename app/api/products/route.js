@@ -64,78 +64,45 @@ export async function GET(request){
         const fastDelivery = searchParams.get('fastDelivery');
         
         // CHECK CACHE FIRST - Skip MongoDB if cached!
-        const cacheKey = generateCacheKey('products', { limit, offset, fastDelivery });
-        const cachedProducts = getCachedData(cacheKey);
-        if (cachedProducts) {
-            return NextResponse.json({ products: cachedProducts, fromCache: true }, {
-                headers: {
-                    'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
-                    'X-Cache': 'HIT'
-                }
-            });
+        const cacheKey = generateCacheKey('products', { limit, offset, fastDelivery: fastDelivery || 'false' });
+        try {
+            const cachedProducts = getCachedData(cacheKey);
+            if (cachedProducts) {
+                return NextResponse.json({ products: cachedProducts, fromCache: true }, {
+                    headers: {
+                        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+                        'X-Cache': 'HIT'
+                    }
+                });
+            }
+        } catch (cacheErr) {
+            console.error('Cache error:', cacheErr.message);
+            // Continue without cache if cache fails
         }
 
-        // OPTIMIZED: Use MongoDB aggregation pipeline instead of find + populate
+        // OPTIMIZED: Use simple find with field selection (aggregation was causing errors)
         const matchStage = { inStock: true };
         if (fastDelivery === 'true') {
             matchStage.fastDelivery = true;
         }
 
-        const aggregationPipeline = [
-            { $match: matchStage },
-            {
-                $lookup: {
-                    from: 'categories',
-                    localField: 'category',
-                    foreignField: '_id',
-                    as: 'categoryData'
-                }
-            },
-            {
-                $addFields: {
-                    category: { $arrayElemAt: ['$categoryData.name', 0] },
-                    discount: {
-                        $cond: [
-                            { $and: [
-                                { $gt: ['$mrp', '$price'] },
-                                { $ne: ['$mrp', null] },
-                                { $ne: ['$price', null] }
-                            ] },
-                            { $round: [{ $multiply: [{ $divide: [{ $subtract: ['$mrp', '$price'] }, '$mrp'] }, 100] }] },
-                            null
-                        ]
-                    }
-                }
-            },
-            { 
-                $project: { 
-                    categoryData: 0, // Remove temp field
-                    name: 1,
-                    slug: 1,
-                    description: 1,
-                    shortDescription: 1,
-                    mrp: 1,
-                    price: 1,
-                    images: 1,
-                    category: 1,
-                    categories: 1,
-                    sku: 1,
-                    hasVariants: 1,
-                    variants: 1,
-                    attributes: 1,
-                    fastDelivery: 1,
-                    stockQuantity: 1,
-                    imageAspectRatio: 1,
-                    createdAt: 1,
-                    discount: 1
-                }
-            },
-            { $sort: { createdAt: -1 } },
-            { $skip: offset },
-            { $limit: limit }
-        ];
+        let products = await Product.find(matchStage)
+            .select('name slug description shortDescription mrp price images category sku hasVariants variants attributes fastDelivery stockQuantity imageAspectRatio createdAt')
+            .populate('category', 'name slug')
+            .sort({ createdAt: -1 })
+            .skip(offset)
+            .limit(limit)
+            .lean()
+            .exec();
 
-        const products = await Product.aggregate(aggregationPipeline).exec();
+        // Normalize category and calculate discount
+        products = products.map(p => ({
+            ...p,
+            category: p.category?.name || p.category || null,
+            discount: (p.mrp && p.price && p.mrp > p.price) 
+                ? Math.round(((p.mrp - p.price) / p.mrp) * 100)
+                : null
+        }));
 
         // FIX N+1: Batch fetch all ratings in ONE query
         const productIds = products.map(p => String(p._id));
@@ -189,8 +156,13 @@ export async function GET(request){
             }
         });
 
-        // CACHE RESULTS - Store in memory for 10 minutes
-        setCachedData(cacheKey, enrichedProducts, 600);
+        // CACHE RESULTS - Store in memory for 10 minutes (with error handling)
+        try {
+            setCachedData(cacheKey, enrichedProducts, 600);
+        } catch (cacheErr) {
+            console.error('Cache set error:', cacheErr.message);
+            // Continue without cache if cache fails
+        }
 
         return NextResponse.json({ products: enrichedProducts }, {
             headers: {

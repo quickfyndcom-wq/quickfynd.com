@@ -608,6 +608,26 @@ export default function ProductForm({ product = null, onClose, onSubmitSuccess }
                         />
                     </div>
                     <div className="flex flex-col gap-3 mt-6 md:col-span-2">
+                        <div className="flex gap-2 mb-4">
+                            <button
+                                type="button"
+                                onClick={() => setProductInfo(p => ({...p, inStock: true}))}
+                                className={`px-4 py-2 rounded-lg font-medium transition ${
+                                    productInfo.inStock ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                Enable Product
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setProductInfo(p => ({...p, inStock: false}))}
+                                className={`px-4 py-2 rounded-lg font-medium transition ${
+                                    !productInfo.inStock ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                Disable Product
+                            </button>
+                        </div>
                         <label className="inline-flex items-center gap-2">
                             <input type="checkbox" checked={productInfo.fastDelivery} onChange={(e)=> setProductInfo(p=>({...p, fastDelivery: e.target.checked}))} className="accent-green-500" />
                             <span className="text-sm font-medium text-green-700">Fast Delivery</span>

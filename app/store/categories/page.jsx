@@ -1,431 +1,341 @@
-'use client'
+'use client';
 
-export const dynamic = 'force-dynamic'
-import { useState, useEffect } from 'react'
-import { useAuth } from '@/lib/useAuth'
-import { PlusIcon, EditIcon, TrashIcon, FolderIcon, ImageIcon, XIcon } from 'lucide-react'
-import { IKImage, IKUpload } from 'imagekitio-next'
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/useAuth';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { FiTrash2, FiPlus, FiEdit2 } from 'react-icons/fi';
+import Loading from '@/components/Loading';
 
+const MAX_CATEGORIES = 10;
 
+export default function StoreCategoryMenu() {
+  const { user, getToken } = useAuth();
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
-export default function StoreCategoriesPage() {
-    const [categories, setCategories] = useState([])
-    const [loading, setLoading] = useState(true)
-    const [showModal, setShowModal] = useState(false)
-    const [editingCategory, setEditingCategory] = useState(null)
-    const [formData, setFormData] = useState({
-        name: '',
-        description: '',
-        image: '',
-        parentId: ''
-    })
-    const [uploading, setUploading] = useState(false)
-    const [submitting, setSubmitting] = useState(false)
-    const { user, loading: authLoading, getToken } = useAuth();
+  const [formData, setFormData] = useState({
+    name: '',
+    image: '',
+    url: '',
+  });
 
-    // Fetch categories
-    const fetchCategories = async () => {
-        try {
-            const token = await getToken(true); // Force refresh token
-            if (!token) {
-                console.error('No token available');
-                setLoading(false);
-                return;
-            }
-            const res = await fetch('/api/store/categories', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.categories) {
-                setCategories(data.categories);
-            }
-        } catch (error) {
-            console.error('Error fetching categories:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
 
-    useEffect(() => {
-        if (!authLoading && user) {
-            fetchCategories();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authLoading, user]);
+  // Fetch categories from store
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      const token = await getToken();
+      const { data } = await axios.get('/api/store/category-menu', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.log('First load or no categories yet');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Handle form submit
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setSubmitting(true);
+  useEffect(() => {
+    if (user) {
+      fetchCategories();
+    }
+  }, [user]);
 
-        try {
-            const url = editingCategory
-                ? `/api/store/categories/${editingCategory._id}`
-                : '/api/store/categories';
+  // Handle image selection
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-            const method = editingCategory ? 'PUT' : 'POST';
-            const token = await getToken(true); // Force refresh token
-            if (!token) {
-                alert('Authentication failed. Please sign in again.');
-                setSubmitting(false);
-                return;
-            }
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(formData)
-            });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                alert(editingCategory ? 'Category updated!' : 'Category created!');
-                setShowModal(false);
-                setEditingCategory(null);
-                setFormData({ name: '', description: '', image: '', parentId: '' });
-                fetchCategories();
-            } else {
-                alert(data.error || 'Failed to save category');
-            }
-        } catch (error) {
-            console.error('Error saving category:', error);
-            alert('Failed to save category');
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    // Handle delete
-    const handleDelete = async (id) => {
-        if (!confirm('Are you sure you want to delete this category?')) return;
-
-        try {
-            const token = await getToken(true); // Force refresh token
-            if (!token) {
-                alert('Authentication failed. Please sign in again.');
-                return;
-            }
-            const res = await fetch(`/api/store/categories/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                alert('Category deleted!');
-                fetchCategories();
-            } else {
-                alert(data.error || 'Failed to delete category');
-            }
-        } catch (error) {
-            console.error('Error deleting category:', error);
-            alert('Failed to delete category');
-        }
-    };
-
-    // Handle edit
-    const handleEdit = (category) => {
-        setEditingCategory(category)
-        setFormData({
-            name: category.name,
-            description: category.description || '',
-            image: category.image || '',
-            parentId: category.parentId || ''
-        })
-        setShowModal(true)
+  // Save category
+  const handleSave = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.url) {
+      toast.error('Name and URL are required');
+      return;
     }
 
-    // Handle image upload success
-    const onUploadSuccess = (res) => {
-        setFormData(prev => ({ ...prev, image: res.url }))
-        setUploading(false)
+    if (!imageFile && !formData.image) {
+      toast.error('Image is required');
+      return;
     }
 
-    // Handle image upload error
-    const onUploadError = (err) => {
-        console.error('Upload error:', err)
-        alert('Failed to upload image')
-        setUploading(false)
+    try {
+      setUploading(true);
+      const token = await getToken();
+      let imageUrl = formData.image;
+
+      // Upload image if new file selected
+      if (imageFile) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', imageFile);
+        const uploadRes = await axios.post('/api/upload', uploadFormData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        imageUrl = uploadRes.data.url;
+      }
+
+      const updatedCategory = {
+        name: formData.name,
+        image: imageUrl,
+        url: formData.url,
+      };
+
+      let newCategories;
+      if (editingIdx !== null) {
+        // Update existing
+        newCategories = [...categories];
+        newCategories[editingIdx] = updatedCategory;
+        toast.success('Category updated');
+      } else {
+        // Add new
+        if (categories.length >= MAX_CATEGORIES) {
+          toast.error(`Maximum ${MAX_CATEGORIES} categories allowed`);
+          setUploading(false);
+          return;
+        }
+        newCategories = [...categories, updatedCategory];
+        toast.success('Category added');
+      }
+
+      // Save to backend
+      await axios.post('/api/store/category-menu', { categories: newCategories }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setCategories(newCategories);
+      setFormData({ name: '', image: '', url: '' });
+      setImageFile(null);
+      setImagePreview('');
+      setShowForm(false);
+      setEditingIdx(null);
+    } catch (error) {
+      toast.error(error?.response?.data?.error || 'Failed to save category');
+    } finally {
+      setUploading(false);
     }
+  };
 
-    // Get parent categories (categories with no parent)
-    const parentCategories = categories.filter(cat => !cat.parentId)
+  // Edit category
+  const handleEdit = (idx) => {
+    const cat = categories[idx];
+    setFormData({
+      name: cat.name,
+      image: cat.image,
+      url: cat.url,
+    });
+    setImagePreview(cat.image);
+    setEditingIdx(idx);
+    setShowForm(true);
+  };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
-            </div>
-        )
+  // Delete category
+  const handleDelete = async (idx) => {
+    if (!confirm('Remove this category?')) return;
+    try {
+      const token = await getToken();
+      const newCategories = categories.filter((_, i) => i !== idx);
+      
+      await axios.post('/api/store/category-menu', { categories: newCategories }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setCategories(newCategories);
+      toast.success('Category removed');
+    } catch (error) {
+      toast.error('Failed to remove category');
     }
+  };
 
-    return (
-        <div className="p-6">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
-                    <p className="text-gray-600 text-sm">Manage your product categories and subcategories</p>
-                </div>
-                <button
-                    onClick={() => {
-                        setEditingCategory(null)
-                        setFormData({ name: '', description: '', image: '', parentId: '' })
-                        setShowModal(true)
-                    }}
-                    className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
-                >
-                    <PlusIcon size={20} />
-                    Add Category
-                </button>
-            </div>
+  // Cancel form
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingIdx(null);
+    setFormData({ name: '', image: '', url: '' });
+    setImageFile(null);
+    setImagePreview('');
+  };
 
-            {/* Categories List */}
-            {parentCategories.length === 0 ? (
-                <div className="text-center py-20 bg-gray-50 rounded-lg">
-                    <FolderIcon size={64} className="mx-auto text-gray-300 mb-4" />
-                    <p className="text-xl text-gray-400 mb-2">No categories yet</p>
-                    <p className="text-gray-500">Create your first category to get started</p>
-                </div>
-            ) : (
-                <div className="space-y-6">
-                    {parentCategories.map(parent => (
-                        <div key={parent._id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                            {/* Parent Category */}
-                            <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
-                                <div className="flex items-center gap-4">
-                                    {parent.image ? (
-                                        <img
-                                            src={parent.image}
-                                            alt={parent.name}
-                                            className="w-16 h-16 object-cover rounded-lg"
-                                        />
-                                    ) : (
-                                        <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                                            <FolderIcon size={32} className="text-gray-400" />
-                                        </div>
-                                    )}
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 text-lg">{parent.name}</h3>
-                                        {parent.description && (
-                                            <p className="text-sm text-gray-600">{parent.description}</p>
-                                        )}
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            {parent.children.length} subcategories
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => handleEdit(parent)}
-                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                    >
-                                        <EditIcon size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(parent._id)}
-                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                    >
-                                        <TrashIcon size={18} />
-                                    </button>
-                                </div>
-                            </div>
+  if (loading) return <Loading />;
+  if (!user) return <div className="p-6 text-red-500">Please login</div>;
 
-                            {/* Subcategories */}
-                            {parent.children.length > 0 && (
-                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {parent.children.map(child => (
-                                        <div
-                                            key={child._id}
-                                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                {child.image ? (
-                                                    <img
-                                                        src={child.image}
-                                                        alt={child.name}
-                                                        className="w-10 h-10 object-cover rounded"
-                                                    />
-                                                ) : (
-                                                    <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
-                                                        <FolderIcon size={20} className="text-gray-400" />
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <p className="font-medium text-sm text-gray-900">{child.name}</p>
-                                                    {child.description && (
-                                                        <p className="text-xs text-gray-500 line-clamp-1">{child.description}</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    onClick={() => handleEdit(child)}
-                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                                >
-                                                    <EditIcon size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(child._id)}
-                                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                >
-                                                    <TrashIcon size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-900">
-                                {editingCategory ? 'Edit Category' : 'Add Category'}
-                            </h2>
-                            <button
-                                onClick={() => {
-                                    setShowModal(false)
-                                    setEditingCategory(null)
-                                }}
-                                className="p-1 hover:bg-gray-100 rounded"
-                            >
-                                <XIcon size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            {/* Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Category Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                    required
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                    placeholder="e.g., Electronics, Clothing"
-                                />
-                            </div>
-
-                            {/* Parent Category */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Parent Category (Optional)
-                                </label>
-                                <select
-                                    value={formData.parentId}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, parentId: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                >
-                                    <option value="">None (Top Level)</option>
-                                    {parentCategories
-                                        .filter(cat => cat._id !== editingCategory?._id)
-                                        .map(cat => (
-                                            <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                        ))
-                                    }
-                                </select>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Leave empty to create a top-level category
-                                </p>
-                            </div>
-
-                            {/* Description */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Description (Optional)
-                                </label>
-                                <textarea
-                                    value={formData.description}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                                    rows={3}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                    placeholder="Brief description of this category"
-                                />
-                            </div>
-
-                            {/* Image Upload */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Category Image (Optional)
-                                </label>
-                                
-                                {formData.image ? (
-                                    <div className="relative w-full h-40 bg-gray-100 rounded-lg overflow-hidden">
-                                        <img
-                                            src={formData.image}
-                                            alt="Category"
-                                            className="w-full h-full object-cover"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData(prev => ({ ...prev, image: '' }))}
-                                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                        >
-                                            <XIcon size={16} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                        <ImageIcon size={40} className="mx-auto text-gray-400 mb-2" />
-                                        <IKUpload
-                                            fileName="category-image.jpg"
-                                            onError={onUploadError}
-                                            onSuccess={onUploadSuccess}
-                                            onUploadStart={() => setUploading(true)}
-                                            className="hidden"
-                                            id="category-image-upload"
-                                        />
-                                        <label
-                                            htmlFor="category-image-upload"
-                                            className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors"
-                                        >
-                                            {uploading ? 'Uploading...' : 'Upload Image'}
-                                        </label>
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            PNG, JPG up to 5MB
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Submit Buttons */}
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowModal(false)
-                                        setEditingCategory(null)
-                                    }}
-                                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submitting || uploading}
-                                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {submitting ? 'Saving...' : editingCategory ? 'Update' : 'Create'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">Store Category Menu</h1>
+            <p className="text-slate-600 mt-2">Create a custom category menu (Max {MAX_CATEGORIES} items)</p>
+          </div>
+          {!showForm && categories.length < MAX_CATEGORIES && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              <FiPlus /> Add Category
+            </button>
+          )}
         </div>
-    )
+
+        {/* Form */}
+        {showForm && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 className="text-2xl font-bold mb-6 text-slate-800">
+              {editingIdx !== null ? 'Edit Category' : 'Add Category'}
+            </h2>
+            <form onSubmit={handleSave} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Category Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Women's Fashion"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                {/* URL */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Category URL *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.url}
+                    onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
+                    placeholder="e.g., /shop?category=women-s-fashion"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Image Upload */}
+              <div className="border-t pt-6">
+                <label className="block text-sm font-medium text-slate-700 mb-4">
+                  Category Image *
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg cursor-pointer"
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      Recommended: 150x150px square image
+                    </p>
+                  </div>
+                  {imagePreview && (
+                    <div className="flex justify-center">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-40 h-40 object-cover rounded-lg border border-slate-200"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex gap-4 pt-6 border-t">
+                <button
+                  type="submit"
+                  disabled={uploading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                >
+                  {uploading ? 'Saving...' : editingIdx !== null ? 'Update' : 'Add Category'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-6 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Categories Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {categories.length === 0 ? (
+            <div className="md:col-span-2 lg:col-span-3 bg-white rounded-lg p-8 text-center text-slate-500">
+              <p className="text-lg">No categories yet</p>
+              <p className="text-sm mt-2">Create your first category to display on your store</p>
+            </div>
+          ) : (
+            categories.map((cat, idx) => (
+              <div key={idx} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
+                <div className="mb-4">
+                  <img
+                    src={cat.image}
+                    alt={cat.name}
+                    className="w-full h-32 object-cover rounded-lg"
+                  />
+                </div>
+                <h3 className="font-semibold text-slate-800 mb-2 truncate">{cat.name}</h3>
+                <p className="text-xs text-blue-600 mb-4 truncate break-all">{cat.url}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(idx)}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition text-sm"
+                  >
+                    <FiEdit2 size={16} /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(idx)}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 text-red-600 hover:bg-red-50 rounded-lg transition text-sm"
+                  >
+                    <FiTrash2 size={16} /> Remove
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Progress */}
+        {categories.length > 0 && (
+          <div className="mt-8 text-center">
+            <p className="text-slate-600">
+              {categories.length} of {MAX_CATEGORIES} categories
+            </p>
+            <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all"
+                style={{ width: `${(categories.length / MAX_CATEGORIES) * 100}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

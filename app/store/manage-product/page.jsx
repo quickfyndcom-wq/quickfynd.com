@@ -28,6 +28,7 @@ export default function StoreManageProducts() {
     const [showEditModal, setShowEditModal] = useState(false)
     const [categoryMap, setCategoryMap] = useState({}) // Map of category ID to name
     const [searchQuery, setSearchQuery] = useState('')
+    const [selectedCategory, setSelectedCategory] = useState('') // Category filter
 
     const fetchStoreProducts = async () => {
         try {
@@ -122,8 +123,17 @@ export default function StoreManageProducts() {
 
     if (loading) return <Loading />
 
-    // Filter products based on search query
+    // Filter products based on search query and selected category
     const filteredProducts = products.filter(product => {
+        // Filter by selected category
+        if (selectedCategory) {
+            const hasCategory = product.categories?.includes(selectedCategory) || product.category === selectedCategory;
+            if (!hasCategory) return false;
+        }
+
+        // Filter by search query
+        if (!searchQuery) return true;
+        
         const query = searchQuery.toLowerCase();
         
         // Search in product name
@@ -149,19 +159,77 @@ export default function StoreManageProducts() {
         <>
             <h1 className="text-2xl text-slate-500 mb-5">Manage <span className="text-slate-800 font-medium">Products</span></h1>
             
-            {/* Search Bar */}
-            <div className="mb-4 max-w-5xl">
-                <input
-                    type="text"
-                    placeholder="Search products by name, SKU, category, tags, or description..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {searchQuery && (
-                    <p className="text-sm text-slate-600 mt-2">
-                        Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
-                    </p>
+            {/* Search Bar and Category Filter */}
+            <div className="mb-6 max-w-5xl flex gap-4 flex-wrap">
+                <div className="flex-1 min-w-xs">
+                    <input
+                        type="text"
+                        placeholder="Search products by name, SKU, category, tags, or description..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {searchQuery && (
+                        <p className="text-sm text-slate-600 mt-2">
+                            Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
+                        </p>
+                    )}
+                </div>
+                
+                {/* Category Filter */}
+                <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                    <option value="">All Categories</option>
+                    {Object.entries(categoryMap).map(([id, name]) => (
+                        <option key={id} value={id}>{name}</option>
+                    ))}
+                </select>
+            </div>
+
+            {/* Quick Category Filter Buttons */}
+            <div className="mb-6 max-w-5xl">
+                <p className="text-sm text-gray-600 font-medium mb-3">Quick Filter by Category:</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                    {['Trending & Featured', "Men's Fashion", "Women's Fashion", 'Kids', 'Electronics', 'Mobile Accessories', 'Home & Kitchen', 'Beauty', 'Car Essentials'].map((categoryName) => {
+                        const categoryId = Object.entries(categoryMap).find(([_, name]) => name === categoryName)?.[0];
+                        const isSelected = selectedCategory === categoryId;
+                        return (
+                            <button
+                                key={categoryName}
+                                onClick={() => setSelectedCategory(isSelected ? '' : (categoryId || ''))}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+                                    isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                                }`}
+                            >
+                                {categoryName}
+                            </button>
+                        );
+                    })}
+                </div>
+                
+                {/* Selected Category Pills */}
+                {selectedCategory && (
+                    <div className="flex flex-wrap gap-2">
+                        {Object.entries(categoryMap)
+                            .filter(([id]) => id === selectedCategory)
+                            .map(([id, name]) => (
+                                <div
+                                    key={id}
+                                    className="inline-flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-full text-sm font-medium"
+                                >
+                                    {name}
+                                    <button
+                                        onClick={() => setSelectedCategory('')}
+                                        className="ml-1 hover:opacity-70 transition"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                    </div>
                 )}
             </div>
 

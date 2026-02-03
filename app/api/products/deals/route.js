@@ -15,14 +15,19 @@ export async function GET(request) {
         
         // CHECK CACHE FIRST - Skip MongoDB if cached!
         const cacheKey = generateCacheKey('deals', { minDiscount, limit, offset });
-        const cachedResult = getCachedData(cacheKey);
-        if (cachedResult) {
-            return NextResponse.json(cachedResult, {
-                headers: {
-                    'Cache-Control': 'public, s-maxage=1200, stale-while-revalidate=2400',
-                    'X-Cache': 'HIT'
-                }
-            });
+        try {
+            const cachedResult = getCachedData(cacheKey);
+            if (cachedResult) {
+                return NextResponse.json(cachedResult, {
+                    headers: {
+                        'Cache-Control': 'public, s-maxage=1200, stale-while-revalidate=2400',
+                        'X-Cache': 'HIT'
+                    }
+                });
+            }
+        } catch (cacheErr) {
+            console.error('Cache error:', cacheErr.message);
+            // Continue without cache if cache fails
         }
 
         // OPTIMIZED: Use MongoDB aggregation pipeline to filter discount at database level
@@ -170,6 +175,19 @@ export async function GET(request) {
 
         // Sort by discount percentage (highest first)
         products.sort((a, b) => b.discount - a.discount);
+
+        // CACHE RESULTS - Store in memory for 20 minutes (with error handling)
+        try {
+            setCachedData(cacheKey, {
+                products,
+                totalDeals,
+                hasMore: (offset + limit) < totalDeals,
+                minDiscount
+            }, 1200);
+        } catch (cacheErr) {
+            console.error('Cache set error:', cacheErr.message);
+            // Continue without cache if cache fails
+        }
 
         return NextResponse.json({ 
             products,

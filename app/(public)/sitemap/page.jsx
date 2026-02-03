@@ -1,12 +1,49 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import axios from 'axios';
 import { FiShoppingBag, FiUsers, FiFileText, FiInfo, FiTruck, FiStar, FiPackage, FiGrid, FiTag } from 'react-icons/fi';
 
-export const metadata = {
-  title: 'Sitemap - QuickFynd',
-  description: 'Browse all pages and sections of QuickFynd',
-};
-
 export default function SitemapPage() {
+  const [sitemapCategories, setSitemapCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const defaultCategories = [
+    { id: 'fast-delivery', text: 'Fast Delivery', path: '/shop?category=fast-delivery' },
+    { id: 'trending-featured', text: 'Trending & Featured', path: '/shop?category=trending-featured' },
+    { id: 'men-s-fashion', text: "Men's Fashion", path: '/shop?category=men-s-fashion' },
+    { id: 'women-s-fashion', text: "Women's Fashion", path: '/shop?category=women-s-fashion' },
+    { id: 'kids', text: 'Kids', path: '/shop?category=kids' },
+    { id: 'electronics', text: 'Electronics', path: '/shop?category=electronics' },
+    { id: 'mobile-accessories', text: 'Mobile Accessories', path: '/shop?category=mobile-accessories' },
+    { id: 'home-kitchen', text: 'Home & Kitchen', path: '/shop?category=home-kitchen' },
+    { id: 'beauty', text: 'Beauty', path: '/shop?category=beauty' },
+    { id: 'car-essentials', text: 'Car Essentials', path: '/shop?category=car-essentials' },
+    { id: 'sports-fitness', text: 'Sports & Fitness', path: '/shop?category=sports-fitness' },
+    { id: 'groceries', text: 'Groceries', path: '/shop?category=groceries' },
+  ];
+
+  useEffect(() => {
+    fetchSitemapCategories();
+  }, []);
+
+  const fetchSitemapCategories = async () => {
+    try {
+      const response = await axios.get('/api/store/sitemap-settings/public');
+      if (response.data.categories && response.data.categories.length > 0) {
+        setSitemapCategories(response.data.categories);
+      } else {
+        setSitemapCategories(defaultCategories);
+      }
+    } catch (error) {
+      console.error('Error fetching sitemap categories:', error);
+      setSitemapCategories(defaultCategories);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sitemapSections = [
     {
       title: 'Shop',
@@ -23,17 +60,9 @@ export default function SitemapPage() {
     {
       title: 'Categories',
       icon: FiTag,
-      links: [
-        { text: 'Trending & Featured', path: '/shop?category=trending-featured' },
-        { text: "Men's Fashion", path: '/shop?category=men-s-fashion' },
-        { text: "Women's Fashion", path: '/shop?category=women-s-fashion' },
-        { text: 'Kids', path: '/shop?category=kids' },
-        { text: 'Electronics', path: '/shop?category=electronics' },
-        { text: 'Mobile Accessories', path: '/shop?category=mobile-accessories' },
-        { text: 'Home & Kitchen', path: '/shop?category=home-kitchen' },
-        { text: 'Beauty', path: '/shop?category=beauty' },
-        { text: 'Car Essentials', path: '/shop?category=car-essentials' },
-      ]
+      links: sitemapCategories.length > 0 
+        ? sitemapCategories.map(cat => ({ text: cat.text, path: cat.url }))
+        : defaultCategories.map(cat => ({ text: cat.text, path: cat.path }))
     },
     {
       title: 'Customer Care',

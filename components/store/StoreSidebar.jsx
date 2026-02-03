@@ -1,6 +1,6 @@
 "use client"
 import { usePathname } from "next/navigation"
-import { HomeIcon, LayoutListIcon, SquarePenIcon, SquarePlusIcon, StarIcon, FolderIcon, TicketIcon, TruckIcon, RefreshCw, User as UserIcon, Users as UsersIcon, MessageSquare, Sparkles, BellIcon, MailIcon, Clock } from "lucide-react"
+import { HomeIcon, LayoutListIcon, SquarePenIcon, SquarePlusIcon, StarIcon, FolderIcon, TicketIcon, TruckIcon, RefreshCw, User as UserIcon, Users as UsersIcon, MessageSquare, Sparkles, BellIcon, MailIcon, Clock, Settings } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useState, useEffect } from "react";
@@ -65,6 +65,24 @@ const StoreSidebar = ({storeInfo}) => {
                         <featuredProductsLink.icon size={18} className="sm:ml-5" />
                         <p className="max-sm:hidden">{featuredProductsLink.name}</p>
                         {pathname === featuredProductsLink.href && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
+                    </Link>
+                    {/* Categories Link - Below Featured Products */}
+                    <Link href="/store/categories" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/categories' && 'bg-slate-100 sm:text-slate-600'}`}>
+                        <FolderIcon size={18} className="sm:ml-5" />
+                        <p className="max-sm:hidden">Store Categories</p>
+                        {pathname === '/store/categories' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
+                    </Link>
+                    {/* Sitemap Categories Link */}
+                    <Link href="/store/sitemap-settings" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/sitemap-settings' && 'bg-slate-100 sm:text-slate-600'}`}>
+                        <Settings size={18} className="sm:ml-5" />
+                        <p className="max-sm:hidden">Sitemap Categories</p>
+                        {pathname === '/store/sitemap-settings' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
+                    </Link>
+                    {/* Home Categories Link */}
+                    <Link href="/store/home-categories" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/home-categories' && 'bg-slate-100 sm:text-slate-600'}`}>
+                        <FolderIcon size={18} className="sm:ml-5" />
+                        <p className="max-sm:hidden">Home Categories</p>
+                        {pathname === '/store/home-categories' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
                     </Link>
                     {/* Carousel Slider Link - Below Featured Products */}
                     <Link href={carouselSliderLink.href} className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === carouselSliderLink.href && 'bg-slate-100 sm:text-slate-600'}`}>

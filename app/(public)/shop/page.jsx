@@ -12,15 +12,50 @@ function ShopContent() {
     const products = useSelector(state => state.product.list);
     const loading = useSelector(state => state.product.loading);
 
-    // Simple search filter only - NO SIDEBAR FILTERS
+    // Filter by search and/or category
     const filteredProducts = useMemo(() => {
-        if (!search) return products;
-        
-        const searchTerm = search.toLowerCase();
-        return products.filter(product => 
-            product.name.toLowerCase().includes(searchTerm)
-        );
-    }, [products, search]);
+        let filtered = products;
+
+        // Filter by category if category param exists
+        if (categoryParam) {
+            filtered = filtered.filter(product => {
+                // Convert categoryParam to normal format (e.g., "women-s-fashion" -> "Women's Fashion")
+                let normalizedParam = categoryParam
+                    .split('-')
+                    .map((word, index) => {
+                        // Handle possessive 's
+                        if (word === 's' && index > 0) {
+                            return "'s";
+                        }
+                        return word.charAt(0).toUpperCase() + word.slice(1);
+                    })
+                    .join(' ')
+                    .replace(/\s's\s/g, "'s "); // Ensure proper spacing around apostrophe
+                
+                // Check if categories array includes the category
+                if (product.categories && Array.isArray(product.categories)) {
+                    return product.categories.some(cat => {
+                        const catValue = typeof cat === 'string' ? cat : (cat?.slug || cat?.name);
+                        return catValue?.toLowerCase() === normalizedParam.toLowerCase();
+                    });
+                }
+                // Fallback to single category field
+                const productCategory = product.category?.slug || product.category?.name || product.category;
+                if (!productCategory) return false;
+                return productCategory.toLowerCase() === normalizedParam.toLowerCase();
+            });
+        }
+
+        // Filter by search term if search param exists
+        if (search) {
+            const searchTerm = search.toLowerCase();
+            filtered = filtered.filter(product => 
+                product.name.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        return filtered;
+    }, [products, search, categoryParam]);
 
     // Get display title
     const pageTitle = useMemo(() => {
@@ -35,7 +70,7 @@ function ShopContent() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-[1400px] mx-auto px-4 py-8">
+            <div className="max-w-[1250px] mx-auto px-4 py-8">
                 {/* Header */}
                 <div className="mb-6 mt-6">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">
