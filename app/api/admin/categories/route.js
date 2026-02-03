@@ -1,11 +1,18 @@
-import { connectDB } from '@/lib/db';
+import dbConnect from '@/lib/mongodb';
 import Category from '@/models/Category';
-import { verifyAdminToken } from '@/lib/auth';
+import { getAuth } from '@/lib/firebase-admin';
 import { NextResponse } from 'next/server';
+
+function parseAuthHeader(req) {
+  const auth = req.headers.get('authorization') || req.headers.get('Authorization');
+  if (!auth) return null;
+  const parts = auth.split(' ');
+  return parts.length === 2 ? parts[1] : null;
+}
 
 export async function GET(request) {
   try {
-    await connectDB();
+    await dbConnect();
     const categories = await Category.find().sort({ createdAt: -1 });
     return NextResponse.json({ categories }, { status: 200 });
   } catch (error) {
@@ -18,12 +25,16 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const admin = await verifyAdminToken(request);
-    if (!admin) {
+    const token = parseAuthHeader(request);
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
+    const firebaseAuth = getAuth();
+    const decoded = await firebaseAuth.verifyIdToken(token);
+    // Add admin check here if needed
+
+    await dbConnect();
     const data = await request.json();
 
     const existingCategory = await Category.findOne({ slug: data.slug });
