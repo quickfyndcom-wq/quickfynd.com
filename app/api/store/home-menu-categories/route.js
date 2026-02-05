@@ -3,6 +3,9 @@ import HomeMenuCategorySettings from '@/models/HomeMenuCategorySettings';
 import { NextResponse } from 'next/server';
 import { getAuth } from '@/lib/firebase-admin';
 
+// Increase max duration and request size for image-heavy category data
+export const maxDuration = 60;
+
 function parseAuthHeader(req) {
   const auth = req.headers.get('authorization') || req.headers.get('Authorization');
   if (!auth) return null;
@@ -32,20 +35,41 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
+  let error = null;
   try {
+    console.log('POST request received, content-length:', req.headers.get('content-length'));
+    
     const token = parseAuthHeader(req);
+    console.log('Token parsed:', !!token);
+    
     if (!token) {
+      console.log('No token provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check payload size early
+    const contentLength = parseInt(req.headers.get('content-length') || '0');
+    if (contentLength > 25 * 1024 * 1024) { // 25MB limit
+      console.error('Payload too large:', contentLength);
+      return NextResponse.json(
+        { error: 'Payload too large. Maximum 25MB allowed. Compress images or reduce number of categories.' },
+        { status: 413 }
+      );
+    }
+
+    console.log('Verifying token...');
     const decoded = await getAuth().verifyIdToken(token);
     const userId = decoded.uid;
+    console.log('Token verified for user:', userId);
 
+    console.log('Connecting to database...');
     await dbConnect();
+    console.log('Database connected');
 
     let body;
     try {
       body = await req.json();
+      console.log('Request body parsed:', !!body, 'items count:', body?.items?.length);
     } catch (parseErr) {
       console.error('JSON parse error:', parseErr);
       return NextResponse.json(
@@ -55,6 +79,7 @@ export async function POST(req) {
     }
 
     const { count, items } = body;
+    console.log('Received count:', count, 'items length:', items?.length);
 
     if (!count || ![6, 8, 10, 12, 14].includes(count)) {
       return NextResponse.json(
@@ -79,6 +104,7 @@ export async function POST(req) {
       }
     });
 
+    console.log('Updating database...');
     const settings = await HomeMenuCategorySettings.findOneAndUpdate(
       { storeId: userId },
       {
@@ -93,6 +119,7 @@ export async function POST(req) {
       },
       { upsert: true, new: true }
     );
+    console.log('Settings saved:', !!settings);
 
     if (!settings) {
       return NextResponse.json(
@@ -101,19 +128,23 @@ export async function POST(req) {
       );
     }
 
+    console.log('Returning success response');
+    // Only return count and items count to reduce response size
     return NextResponse.json(
       {
         message: 'Configuration saved successfully',
         data: {
           count: settings.count,
-          items: settings.items,
+          itemsCount: settings.items.length,
         },
       },
       { status: 200 }
     );
-  } catch (error) {
-    console.error('Error saving home menu categories:', error);
-    const errorMessage = error?.message || 'Failed to save configuration';
+  } catch (err) {
+    error = err;
+    console.error('Error saving home menu categories:', err);
+    const errorMessage = err?.message || 'Failed to save configuration';
+    console.error('Returning error response:', errorMessage);
     return NextResponse.json(
       { error: errorMessage },
       { status: 500 }

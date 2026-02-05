@@ -117,8 +117,13 @@ export default function HomeMenuCategories() {
     setFieldErrors({});
   };
 
-  // Handle image upload
+  // Handle image upload with compression
   const handleImageUpload = (index, file) => {
+    if (file.size > 500000) { // 500KB limit per image
+      setMessage({ type: 'error', text: `❌ Image too large (${(file.size / 1024).toFixed(0)}KB). Please compress to under 500KB.` });
+      return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
       const newItems = [...items];
