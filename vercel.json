@@ -2,7 +2,7 @@
   "functions": {
     "app/api/store/home-menu-categories/route.js": {
       "maxDuration": 120,
-      "memory": 3008
+      "memory": 2048
     },
     "app/api/**/*.js": {
       "maxDuration": 60,
@@ -10,4 +10,5 @@
     }
   }
 }
+
 
