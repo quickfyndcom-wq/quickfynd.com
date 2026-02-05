@@ -213,8 +213,13 @@ export default function HomeMenuCategories() {
           return;
         }
 
+        // Remove base64 image from validItems - will be uploaded separately
+        const { imageFile, ...itemWithoutFile } = item;
+        
         validItems.push({
-          ...item,
+          ...itemWithoutFile,
+          // Only include image if it's NOT base64 (i.e., already a URL)
+          image: item.image && !item.image.startsWith('data:') ? item.image : item.image,
           url: hasValidUrl ? item.url : null,
           categoryId: hasValidCategoryId ? item.categoryId : null,
         });
@@ -230,7 +235,8 @@ export default function HomeMenuCategories() {
       console.log('Uploading images...');
       const itemsWithUploadedImages = await Promise.all(
         validItems.map(async (item, idx) => {
-          if (item.isBase64 && item.image && item.image.startsWith('data:')) {
+          // Only upload if image is base64 (starts with 'data:')
+          if (item.image && item.image.startsWith('data:')) {
             try {
               console.log(`Uploading image ${idx}...`);
               
@@ -248,8 +254,9 @@ export default function HomeMenuCategories() {
               });
 
               if (!uploadRes.ok) {
-                const errorData = await uploadRes.json();
-                throw new Error(errorData.error || `Image upload failed (${uploadRes.status})`);
+                const errorText = await uploadRes.text();
+                console.error(`Image ${idx} upload failed (${uploadRes.status}):`, errorText);
+                throw new Error(`Image upload failed: ${errorText}`);
               }
 
               const uploadedData = await uploadRes.json();
@@ -258,13 +265,13 @@ export default function HomeMenuCategories() {
               return {
                 ...item,
                 image: uploadedData.url,
-                isBase64: false,
               };
             } catch (uploadErr) {
               console.error(`Image ${idx} upload error:`, uploadErr);
               throw new Error(`Failed to upload image ${idx + 1}: ${uploadErr.message}`);
             }
           }
+          // Item already has a URL, no upload needed
           return item;
         })
       );
