@@ -1,35 +1,121 @@
-import { useRef } from "react";
+'use client';
+
+import { useRef, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import Fast from '../assets/HOME/homecategory/FastDelivery.png'
-import Trending from '../assets/HOME/homecategory/Trending.png'
-import Men from '../assets/HOME/homecategory/mens.png'
-import Women from '../assets/HOME/homecategory/Women.png'
-import Kids from '../assets/HOME/homecategory/Kids.png'
-import Accessories from '../assets/HOME/homecategory/mobileaccessories.png'
-import Home from '../assets/HOME/homecategory/Home&Kitchen.png'
-import Beauty from '../assets/HOME/homecategory/Beauty.png'
-import Essentials from '../assets/HOME/homecategory/CarEssentials.png'
-import Sports from '../assets/HOME/homecategory/sports.png'
-
-const categories = [
-  { label: "Fast Delivery", img: Fast, link: "/fast-delivery" },
-  { label: "Trending", img: Trending, link: "/shop?category=trending-featured" },
-  { label: "Men", img: Men, link: "/shop?category=men-s-fashion" },
-  { label: "Women", img: Women, link: "/shop?category=women-s-fashion" },
-  { label: "Kids", img: Kids, link: "/shop?category=kids" },
-  { label: "Electronics", img: Home, link: "/shop?category=electronics" },
-  { label: "Mobile Accessories", img: Accessories, link: "/shop?category=mobile-accessories" },
-  { label: "Home & Kitchen", img: Home, link: "/shop?category=home-kitchen" },
-  { label: "Beauty", img: Beauty, link: "/shop?category=beauty" },
-  { label: "Car Essentials", img: Essentials, link: "/shop?category=car-essentials" },
-  { label: "Sports & Fitness", img: Sports, link: "/shop?category=sports-fitness" },
-  { label: "Groceries", img: Home, link: "/shop?category=groceries" }
-];
 
 export default function HomeCategories() {
   const scrollRef = useRef(null);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const CACHE_KEY = 'homeMenuCategoriesCache';
+
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        // Check localStorage first for immediate display
+        const cached = localStorage.getItem(CACHE_KEY);
+        let cachedData = null;
+        
+        if (cached) {
+          try {
+            cachedData = JSON.parse(cached);
+            if (Array.isArray(cachedData?.items) && cachedData.items.length > 0) {
+              setCategories(cachedData.items);
+              setError(null);
+            }
+          } catch (e) {
+            console.error('Cache parse error:', e);
+          }
+        }
+
+        // Fetch fresh data from API
+        const response = await fetch('/api/store/home-menu-categories', { cache: 'no-store' });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('API Response:', data);
+          
+          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+            console.log('Setting categories from API:', data.items);
+            setCategories(data.items);
+            
+            // Try to save to localStorage, but handle quota exceeded gracefully
+            try {
+              const cacheData = { 
+                items: data.items, 
+                count: data.count || data.items.length, 
+                updatedAt: Date.now() 
+              };
+              localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+            } catch (storageErr) {
+              if (storageErr.name === 'QuotaExceededError') {
+                console.warn('localStorage quota exceeded, clearing old cache', storageErr);
+                // Try to clear cache and retry
+                try {
+                  localStorage.removeItem(CACHE_KEY);
+                  const cacheData = { 
+                    items: data.items, 
+                    count: data.count || data.items.length, 
+                    updatedAt: Date.now() 
+                  };
+                  localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+                } catch (retryErr) {
+                  console.warn('Could not save to localStorage even after clearing:', retryErr);
+                  // Continue without caching - data is already set in state
+                }
+              } else {
+                console.warn('localStorage error:', storageErr);
+              }
+            }
+            
+            setError(null);
+          } else {
+            console.warn('API returned empty items:', data);
+            // API returned empty, use cache if available
+            if (!cachedData || !cachedData.items || cachedData.items.length === 0) {
+              setError('No categories available');
+            }
+          }
+        } else {
+          console.error('API response not ok:', response.status);
+          // API call failed, use cached data if available
+          if (!cachedData || !cachedData.items || cachedData.items.length === 0) {
+            setError(`Failed to load categories (${response.status})`);
+          }
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('HomeCategories error:', err);
+        
+        // Try to use cached data as fallback
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          try {
+            const cachedData = JSON.parse(cached);
+            if (Array.isArray(cachedData?.items) && cachedData.items.length > 0) {
+              console.log('Using cached data due to error:', cachedData.items);
+              setCategories(cachedData.items);
+              setError(null);
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.error('Error parsing fallback cache:', e);
+          }
+        }
+        
+        setError(`Error: ${err.message}`);
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const scrollLeft = () => {
     if (scrollRef.current) scrollRef.current.scrollBy({ left: -200, behavior: "smooth" });
@@ -39,9 +125,49 @@ export default function HomeCategories() {
     if (scrollRef.current) scrollRef.current.scrollBy({ left: 200, behavior: "smooth" });
   };
 
+  // Determine the link for each category
+  const getCategoryLink = (cat) => {
+    // If custom URL is provided, use it
+    if (cat.url) return cat.url;
+    // If category ID is provided, navigate to shop with category
+    if (cat.categoryId) return `/shop?category=${cat.categoryId}`;
+    // Default fallback
+    return '/shop';
+  };
+
+  // Show loading state with skeleton
+  if (loading && categories.length === 0) {
+    return (
+      <div className="relative w-full max-w-[1250px] mx-auto bg-white py-4 px-2">
+        <div className="flex gap-4 md:gap-6 overflow-x-auto scrollbar-hide px-12 md:px-4 md:justify-between">
+          {Array(10).fill(0).map((_, idx) => (
+            <div key={idx} className="flex flex-col items-center flex-shrink-0 w-24 md:flex-1 p-2 md:p-3">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-lg bg-gray-200 animate-pulse" />
+              <div className="mt-2 h-3 bg-gray-200 rounded w-12 md:w-full animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if we have one and no categories
+  if (error && categories.length === 0) {
+    return (
+      <div className="relative w-full max-w-[1250px] mx-auto bg-white py-4 px-2">
+        <div className="text-center py-8 text-gray-500 text-sm">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  // Don't show anything if no categories (after loading and no error)
+  if (categories.length === 0) {
+    return null;
+  }
+
   return (
-    // Desktop: arrows hidden, Mobile: arrows visible
-    // using hidden md:block or block md:hidden classes as needed
     <div className="relative w-full max-w-[1250px] mx-auto bg-white py-4 px-2">
       {/* Left Arrow */}
       <button
@@ -59,26 +185,27 @@ export default function HomeCategories() {
       >
         {categories.map((cat, idx) => (
           <Link
-            key={cat.label + '-' + idx}
-            href={cat.link}
-            className="flex flex-col items-center flex-shrink-0 w-20 md:flex-1 cursor-pointer hover:bg-blue-50 hover:scale-105 transition-all duration-200 rounded-2xl p-2 md:p-3"
+            key={`${cat.name}-${idx}`}
+            href={getCategoryLink(cat)}
+            className="flex flex-col items-center flex-shrink-0 w-24 md:flex-1 cursor-pointer hover:scale-105 transition-all duration-200 p-2 md:p-3"
             style={{ scrollSnapAlign: 'start' }}
           >
-            <div className="relative w-16 h-16 md:w-20 md:h-20">
-              <Image 
-                src={cat.img} 
-                alt={cat.label} 
-                fill
-                className="object-contain" 
-              />
-              {cat.badge && (
-                <span className="absolute left-1/2 -translate-x-1/2 -top-3 bg-blue-600 text-xs md:text-sm text-white px-3 py-1 rounded-full font-bold shadow-md z-50 border-2 border-white">
-                  {cat.badge}
-                </span>
+            <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden">
+              {cat.image ? (
+                <Image 
+                  src={cat.image} 
+                  alt={cat.name} 
+                  fill
+                  className="object-cover" 
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  No image
+                </div>
               )}
             </div>
             <span className="mt-2 text-[10px] sm:text-xs md:text-sm text-center font-medium line-clamp-2 leading-tight w-full">
-              {cat.label} {cat.hasDropdown && <span>&#9660;</span>}
+              {cat.name}
             </span>
           </Link>
         ))}

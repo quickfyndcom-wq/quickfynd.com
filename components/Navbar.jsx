@@ -3,7 +3,7 @@
 import { PackageIcon, Search, ShoppingCart, LifeBuoy, Menu, X, HeartIcon, StarIcon, ArrowLeft, LogOut, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSelector } from "react-redux";
 import { auth } from '../lib/firebase';
 import { getAuth } from "firebase/auth";
@@ -60,12 +60,14 @@ const Navbar = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [wishlistCount, setWishlistCount] = useState(0);
   const cartCount = useSelector((state) => state.cart.total);
+  const products = useSelector((state) => state.product.list);
   const [signInOpen, setSignInOpen] = useState(false);
   const [signInMode, setSignInMode] = useState('login');
   const [firebaseUser, setFirebaseUser] = useState(undefined);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [signOutContext, setSignOutContext] = useState('desktop');
   const [walletCoins, setWalletCoins] = useState(0);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const getShortName = (value) => {
     const name = (value || '').trim();
@@ -310,8 +312,23 @@ const Navbar = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    router.push(`/shop?search=${search}`);
+    const query = search.trim();
+    if (!query) return;
+    router.push(`/shop?search=${encodeURIComponent(query)}`);
   };
+
+  const searchSuggestions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query || !Array.isArray(products)) return [];
+    return products
+      .filter((product) => {
+        const name = (product?.name || '').toLowerCase();
+        const brand = (product?.brand || product?.brandName || '').toLowerCase();
+        const sku = (product?.sku || '').toLowerCase();
+        return name.includes(query) || brand.includes(query) || sku.includes(query);
+      })
+      .slice(0, 6);
+  }, [search, products]);
 
   const handleCartClick = (e) => {
     e.preventDefault();
@@ -388,7 +405,7 @@ const Navbar = () => {
             </Link>
 
             {/* Center: Search Bar */}
-            <form onSubmit={handleSearch} className="flex-1 max-w-md">
+            <form onSubmit={handleSearch} className="flex-1 max-w-md relative">
               <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-md border border-gray-200">
                 <Search size={16} className="text-gray-500 flex-shrink-0" />
                 <input
@@ -396,9 +413,41 @@ const Navbar = () => {
                   placeholder="Search products..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                   className="w-full bg-transparent outline-none placeholder-gray-400 text-gray-800 text-sm"
                 />
               </div>
+              {searchFocused && searchSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                  {searchSuggestions.map((product) => (
+                    <Link
+                      key={product._id || product.slug}
+                      href={`/product/${product.slug || product._id}`}
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setSearchFocused(false)}
+                    >
+                      <div className="relative h-8 w-8 overflow-hidden rounded-md bg-gray-100">
+                        {product.image || product.images?.[0] ? (
+                          <Image
+                            src={product.image || product.images?.[0]}
+                            alt={product.name || 'Product'}
+                            fill
+                            sizes="32px"
+                            className="object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-medium block truncate">{product.name}</span>
+                        {product.brand && (
+                          <span className="text-xs text-gray-500 truncate">{product.brand}</span>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </form>
 
             {/* Right: Cart */}
@@ -550,16 +599,48 @@ const Navbar = () => {
             </div>
           
             {/* Search Bar */}
-            <form onSubmit={handleSearch} className="flex items-center w-full max-w-md text-sm gap-2 bg-gray-100 px-4 py-2.5 rounded-full border border-gray-200 focus-within:border-orange-300 focus-within:ring-1 focus-within:ring-orange-200 transition">
+            <form onSubmit={handleSearch} className="relative flex items-center w-full max-w-md text-sm gap-2 bg-gray-100 px-4 py-2.5 rounded-full border border-gray-200 focus-within:border-orange-300 focus-within:ring-1 focus-within:ring-orange-200 transition">
               <Search size={18} className="text-gray-500 flex-shrink-0" />
               <input
                 type="text"
                 placeholder={searchPlaceholder || "Search products"}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                 className="w-full bg-transparent outline-none placeholder-gray-500 text-gray-700"
                 required
               />
+              {searchFocused && searchSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  {searchSuggestions.map((product) => (
+                    <Link
+                      key={product._id || product.slug}
+                      href={`/product/${product.slug || product._id}`}
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setSearchFocused(false)}
+                    >
+                      <div className="relative h-8 w-8 overflow-hidden rounded-md bg-gray-100">
+                        {product.image || product.images?.[0] ? (
+                          <Image
+                            src={product.image || product.images?.[0]}
+                            alt={product.name || 'Product'}
+                            fill
+                            sizes="32px"
+                            className="object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-medium block truncate">{product.name}</span>
+                        {product.brand && (
+                          <span className="text-xs text-gray-500 truncate">{product.brand}</span>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
               {/* Camera Icon for image search (temporarily hidden)
               <button type="button" className="flex-shrink-0" onClick={() => setShowImageSearch(true)}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-gray-500 hover:text-blue-600">
@@ -848,16 +929,48 @@ const Navbar = () => {
 
         {/* Mobile Search Bar - Below main navbar on mobile */}
         <div className="lg:hidden pb-3" style={{ backgroundColor: '#2874f0' }}>
-          <form onSubmit={handleSearch} className="flex items-center text-sm gap-2 bg-gray-100 mx-4 px-4 py-2.5 rounded-full border border-gray-200">
+          <form onSubmit={handleSearch} className="relative flex items-center text-sm gap-2 bg-gray-100 mx-4 px-4 py-2.5 rounded-full border border-gray-200">
             <Search size={18} className="text-gray-500" />
             <input
               type="text"
               placeholder={searchPlaceholder || "Search products"}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               className="w-full bg-transparent outline-none placeholder-gray-500 text-gray-700"
               required
             />
+            {searchFocused && searchSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                {searchSuggestions.map((product) => (
+                  <Link
+                    key={product._id || product.slug}
+                    href={`/product/${product.slug || product._id}`}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                    onClick={() => setSearchFocused(false)}
+                  >
+                    <div className="relative h-8 w-8 overflow-hidden rounded-md bg-gray-100">
+                      {product.image || product.images?.[0] ? (
+                        <Image
+                          src={product.image || product.images?.[0]}
+                          alt={product.name || 'Product'}
+                          fill
+                          sizes="32px"
+                          className="object-cover"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium block truncate">{product.name}</span>
+                      {product.brand && (
+                        <span className="text-xs text-gray-500 truncate">{product.brand}</span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </form>
         </div>
 

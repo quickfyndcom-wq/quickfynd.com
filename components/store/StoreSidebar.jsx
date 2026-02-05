@@ -30,6 +30,7 @@ const StoreSidebar = ({storeInfo}) => {
     ]
 
     const featuredProductsLink = { name: 'Featured Products', href: '/store/featured-products', icon: Sparkles }
+    const categorySliderLink = { name: 'Category Sliders', href: '/store/category-slider', icon: Sparkles }
     const carouselSliderLink = { name: 'Carousel Slider', href: '/store/carousel-slider', icon: StarIcon }
     const dealsLink = { name: 'Deals of the Day', href: '/store/deals', icon: Clock }
 
@@ -66,12 +67,14 @@ const StoreSidebar = ({storeInfo}) => {
                         <p className="max-sm:hidden">{featuredProductsLink.name}</p>
                         {pathname === featuredProductsLink.href && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
                     </Link>
-                    {/* Categories Link - Below Featured Products */}
-                    <Link href="/store/categories" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/categories' && 'bg-slate-100 sm:text-slate-600'}`}>
-                        <FolderIcon size={18} className="sm:ml-5" />
-                        <p className="max-sm:hidden">Store Categories</p>
-                        {pathname === '/store/categories' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
+                    
+                    {/* Category Sliders Link */}
+                    <Link href={categorySliderLink.href} className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === categorySliderLink.href && 'bg-slate-100 sm:text-slate-600'}`}>
+                        <categorySliderLink.icon size={18} className="sm:ml-5" />
+                        <p className="max-sm:hidden">{categorySliderLink.name}</p>
+                        {pathname === categorySliderLink.href && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
                     </Link>
+                    
                     {/* Sitemap Categories Link */}
                     <Link href="/store/sitemap-settings" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/sitemap-settings' && 'bg-slate-100 sm:text-slate-600'}`}>
                         <Settings size={18} className="sm:ml-5" />
@@ -79,10 +82,24 @@ const StoreSidebar = ({storeInfo}) => {
                         {pathname === '/store/sitemap-settings' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
                     </Link>
                     {/* Home Categories Link */}
-                    <Link href="/store/home-categories" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/home-categories' && 'bg-slate-100 sm:text-slate-600'}`}>
+                 
+                    {/* Home Menu Categories Link */}
+                    <Link href="/store/home-menu-categories" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/home-menu-categories' && 'bg-slate-100 sm:text-slate-600'}`}>
                         <FolderIcon size={18} className="sm:ml-5" />
-                        <p className="max-sm:hidden">Home Categories</p>
-                        {pathname === '/store/home-categories' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
+                        <p className="max-sm:hidden">Home Menu Categories</p>
+                        {pathname === '/store/home-menu-categories' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
+                    </Link>
+                    {/* Email Templates Link */}
+                    <Link href="/store/email-templates" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/email-templates' && 'bg-slate-100 sm:text-slate-600'}`}>
+                        <MailIcon size={18} className="sm:ml-5" />
+                        <p className="max-sm:hidden">Email Templates</p>
+                        {pathname === '/store/email-templates' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
+                    </Link>
+                    {/* Send Test Email Link */}
+                    <Link href="/store/send-test-email" className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === '/store/send-test-email' && 'bg-slate-100 sm:text-slate-600'}`}>
+                        <BellIcon size={18} className="sm:ml-5" />
+                        <p className="max-sm:hidden">Send Test Email</p>
+                        {pathname === '/store/send-test-email' && <span className="absolute bg-green-500 right-0 top-1.5 bottom-1.5 w-1 sm:w-1.5 rounded-l"></span>}
                     </Link>
                     {/* Carousel Slider Link - Below Featured Products */}
                     <Link href={carouselSliderLink.href} className={`relative flex items-center gap-3 text-slate-500 hover:bg-slate-50 p-2.5 transition ${pathname === carouselSliderLink.href && 'bg-slate-100 sm:text-slate-600'}`}>

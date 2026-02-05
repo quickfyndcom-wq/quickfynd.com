@@ -39,36 +39,61 @@ export async function GET(request) {
       }, { status: 404 });
     }
 
-    // Get featured products
+    // Get featured products with complete details
     const featuredProducts = await Product.find({ 
-      isPublished: true,
-      stock: { $gt: 0 }
+      inStock: true,
+      stockQuantity: { $gt: 0 }
     })
-    .sort({ sold: -1 })
+    .sort({ createdAt: -1 })
     .limit(4)
-    .select('name price salePrice images')
+    .select('_id name slug mrp price images description category stockQuantity')
     .lean();
 
     const products = featuredProducts.map(p => ({
+      id: p._id.toString(),
+      slug: p.slug,
       name: p.name,
-      price: p.salePrice || p.price,
-      originalPrice: p.salePrice ? p.price : null,
-      image: p.images && p.images[0] ? p.images[0] : null
+      description: p.description || '',
+      category: p.category || 'Product',
+      price: p.price,
+      originalPrice: p.mrp || null,
+      image: p.images && p.images[0] ? p.images[0] : null,
+      images: p.images || [],
+      stock: p.stockQuantity || 0
     }));
 
     // Send emails
     const results = [];
     for (const customer of customers) {
       try {
+        // Check email preferences
+        const dbUser = await User.findOne({ email: customer.email }).select('emailPreferences');
+        const preferences = dbUser?.emailPreferences || { promotional: true };
+        
+        // Skip if user has unsubscribed from promotional emails
+        if (preferences.promotional === false) {
+          results.push({ 
+            email: customer.email, 
+            status: 'skipped',
+            reason: 'User unsubscribed from promotional emails'
+          });
+          continue;
+        }
+
         const htmlContent = template.template(products, customer.email);
+        
+        // Personalize subject with customer name
+        const customerFirstName = customer.name ? customer.name.split(' ')[0] : 'there';
+        const personalizedSubject = `HEY ${customerFirstName.toUpperCase()}! ${template.subject}`;
         
         await sendMail({
           to: customer.email,
-          subject: template.subject,
+          subject: personalizedSubject,
           html: htmlContent,
+          fromType: 'marketing',
           tags: [{ name: 'category', value: 'promotional' }],
           headers: {
-            'List-Unsubscribe': `<${process.env.NEXT_PUBLIC_BASE_URL || 'https://quickfynd.com'}/profile/settings?unsubscribe=promotional&email=${encodeURIComponent(customer.email)}>`,
+            'List-Unsubscribe': `<${process.env.NEXT_PUBLIC_BASE_URL || 'https://quickfynd.com'}/settings?unsubscribe=promotional&email=${encodeURIComponent(customer.email)}>`,
             'X-Campaign': template.id
           }
         });
@@ -80,7 +105,7 @@ export async function GET(request) {
               type: 'promotional',
               recipientEmail: customer.email,
               recipientName: customer.name || 'Customer',
-              subject: template.subject,
+              subject: personalizedSubject,
               status: 'sent',
               customMessage: `template:${template.id}`,
               sentAt: new Date()
@@ -193,36 +218,61 @@ export async function POST(request) {
       }, { status: 404 });
     }
 
-    // Get featured products
+    // Get featured products with complete details
     const featuredProducts = await Product.find({ 
-      isPublished: true,
-      stock: { $gt: 0 }
+      inStock: true,
+      stockQuantity: { $gt: 0 }
     })
-    .sort({ sold: -1 })
+    .sort({ createdAt: -1 })
     .limit(4)
-    .select('name price salePrice images')
+    .select('_id name slug mrp price images description category stockQuantity')
     .lean();
 
     const products = featuredProducts.map(p => ({
+      id: p._id.toString(),
+      slug: p.slug,
       name: p.name,
-      price: p.salePrice || p.price,
-      originalPrice: p.salePrice ? p.price : null,
-      image: p.images && p.images[0] ? p.images[0] : null
+      description: p.description || '',
+      category: p.category || 'Product',
+      price: p.price,
+      originalPrice: p.mrp || null,
+      image: p.images && p.images[0] ? p.images[0] : null,
+      images: p.images || [],
+      stock: p.stockQuantity || 0
     }));
 
     // Send emails
     const results = [];
     for (const customer of customers) {
       try {
+        // Check email preferences
+        const dbUser = await User.findOne({ email: customer.email }).select('emailPreferences');
+        const preferences = dbUser?.emailPreferences || { promotional: true };
+        
+        // Skip if user has unsubscribed from promotional emails
+        if (preferences.promotional === false) {
+          results.push({ 
+            email: customer.email, 
+            status: 'skipped',
+            reason: 'User unsubscribed from promotional emails'
+          });
+          continue;
+        }
+
         const htmlContent = template.template(products, customer.email);
+        
+        // Personalize subject with customer name
+        const customerFirstName = customer.name ? customer.name.split(' ')[0] : 'there';
+        const personalizedSubject = `HEY ${customerFirstName.toUpperCase()}! ${template.subject}`;
         
         await sendMail({
           to: customer.email,
-          subject: template.subject,
+          subject: personalizedSubject,
           html: htmlContent,
+          fromType: 'marketing',
           tags: [{ name: 'category', value: 'promotional' }],
           headers: {
-            'List-Unsubscribe': `<${process.env.NEXT_PUBLIC_BASE_URL || 'https://quickfynd.com'}/profile/settings?unsubscribe=promotional&email=${encodeURIComponent(customer.email)}>`,
+            'List-Unsubscribe': `<${process.env.NEXT_PUBLIC_BASE_URL || 'https://quickfynd.com'}/settings?unsubscribe=promotional&email=${encodeURIComponent(customer.email)}>`,
             'X-Campaign': template.id
           }
         });
@@ -234,7 +284,7 @@ export async function POST(request) {
               type: 'promotional',
               recipientEmail: customer.email,
               recipientName: customer.name || 'Customer',
-              subject: template.subject,
+              subject: personalizedSubject,
               status: 'sent',
               customMessage: `template:${template.id}`,
               sentAt: new Date()

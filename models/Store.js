@@ -21,6 +21,17 @@ const StoreSchema = new mongoose.Schema({
   status: { type: String, default: "pending", enum: ["pending", "approved", "rejected"] },
   featuredProductIds: { type: [String], default: [] }, // Array of featured product IDs
   carouselProductIds: { type: [String], default: [] }, // Array of product IDs for carousel slider
+  homeMenuCategories: {
+    count: { type: Number, default: 6 },
+    items: [
+      {
+        name: String,
+        image: String,
+        url: String,
+        categoryId: mongoose.Schema.Types.ObjectId,
+      },
+    ],
+  },
 }, { timestamps: true });
 
 // Create index on username for faster lookups

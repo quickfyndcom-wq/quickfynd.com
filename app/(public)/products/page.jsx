@@ -148,7 +148,7 @@ function ProductsContent() {
 
     return (
         <div className="bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 py-8 min-h-[60vh]">
+            <div className="max-w-7xl mx-auto px-4 py-8">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>

@@ -22,8 +22,6 @@ const KeywordPills = dynamic(() => import("@/components/KeywordPills"), { ssr: f
 
 export default function Home() {
     const products = useSelector(state => state.product.list);
-    const [adminSections, setAdminSections] = useState([]);
-    const [gridSections, setGridSections] = useState([]);
     const [section4Data, setSection4Data] = useState([]);
 
     // Track customer location
@@ -32,45 +30,17 @@ export default function Home() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [sectionsRes, gridRes, section4Res] = await Promise.all([
-                    axios.get('/api/admin/home-sections').catch(() => ({ data: { sections: [] } })),
-                    axios.get('/api/admin/grid-products').catch(() => ({ data: { sections: [] } })),
-                    axios.get('/api/admin/section4').catch(() => ({ data: { sections: [] } }))
-                ]);
-                setAdminSections(sectionsRes.data.sections || []);
-                setGridSections(Array.isArray(gridRes.data.sections) ? gridRes.data.sections : []);
-                setSection4Data(section4Res.data.sections || []);
+                const featuredRes = await axios.get('/api/public/featured-sections').catch(() => ({ data: { sections: [] } }));
+                setSection4Data(featuredRes.data.sections || []);
             } catch (error) {
                 console.error('Error fetching data:', error);
-                setAdminSections([]);
-                setGridSections([]);
                 setSection4Data([]);
             }
         };
         fetchData();
     }, []);
 
-    const curatedSections = useMemo(() => {
-        return adminSections.map(section => {
-            let sectionProducts = section.productIds?.length > 0
-                ? products.filter(p => section.productIds.includes(p.id))
-                : products;
-
-            if (section.category) {
-                sectionProducts = sectionProducts.filter(p => p.category === section.category);
-            }
-
-            return {
-                title: section.section,
-                products: sectionProducts,
-                viewAllLink: section.category ? `/shop?category=${section.category}` : '/shop'
-            };
-        });
-    }, [adminSections, products]);
-
     const categorySections = useMemo(() => {
-        if (adminSections.length > 0) return [];
-        
         const categories = [...new Set(products.map(p => (p.category || '').toLowerCase()))];
 
         return categories.slice(0, 4).map(category => ({
@@ -78,17 +48,7 @@ export default function Home() {
             products: products.filter(p => (p.category || '').toLowerCase() === category),
             viewAllLink: `/shop?category=${category}`
         }));
-    }, [products, adminSections]);
-
-    const sections = curatedSections.length > 0 ? curatedSections : categorySections;
-
-    // Prepare grid sections with product details
-    const gridSectionsWithProducts = gridSections.map(section => ({
-        ...section,
-        products: (section.productIds || []).map(pid => products.find(p => p.id === pid)).filter(Boolean)
-    }));
-    // Only show grid if at least one section has a title and products
-    const showGrid = gridSectionsWithProducts.some(s => s.title && s.products && s.products.length > 0);
+    }, [products]);
 
     return (
         <>
@@ -102,7 +62,7 @@ export default function Home() {
            
                 <Section3/>
    
-            {/* Category Sections */}
+            {/* Featured Sections - Display all created sliders from category-slider */}
            {section4Data.length > 0 && (
   <div className="max-w-[1280px] mx-auto w-full">
     <Section4 sections={section4Data} />

@@ -94,15 +94,30 @@ export const sendDailyPromotionalEmail = inngest.createFunction(
         const products = await step.run('fetch-products', async () => {
             await connectDB();
             const Product = (await import('@/models/Product')).default;
-            const featuredProducts = await Product.find({ isPublished: true, stock: { $gt: 0 } }).sort({ sold: -1 }).limit(4).select('name price salePrice images').lean();
-            return featuredProducts.map(p => ({ name: p.name, price: p.salePrice || p.price, originalPrice: p.salePrice ? p.price : null, image: p.images?.[0] }));
+            const featuredProducts = await Product.find({ inStock: true, stockQuantity: { $gt: 0 } }).sort({ createdAt: -1 }).limit(4).select('_id name slug mrp price images description category stockQuantity').lean();
+            return featuredProducts.map(p => ({ 
+              id: p._id.toString(), 
+              slug: p.slug, 
+              name: p.name,
+              description: p.description || '',
+              category: p.category || 'Product',
+              price: p.price, 
+              originalPrice: p.mrp || null, 
+              image: p.images?.[0],
+              images: p.images || [],
+              stock: p.stockQuantity || 0
+            }));
         });
         const emailResults = await step.run('send-emails', async () => {
             const { sendMail } = await import('@/lib/email');
             const results = [];
             for (const customer of customers) {
                 try {
-                    await sendMail({ to: customer.email, subject: template.subject, html: template.template(products) });
+                    // Personalize subject with customer name
+                    const customerFirstName = customer.name ? customer.name.split(' ')[0] : 'there';
+                    const personalizedSubject = `HEY ${customerFirstName.toUpperCase()}! ${template.subject}`;
+                    
+                    await sendMail({ to: customer.email, subject: personalizedSubject, html: template.template(products), fromType: 'marketing' });
                     if (storeObjectId) {
                         try {
                             await EmailHistory.create({
@@ -110,7 +125,7 @@ export const sendDailyPromotionalEmail = inngest.createFunction(
                                 type: 'promotional',
                                 recipientEmail: customer.email,
                                 recipientName: customer.name || 'Customer',
-                                subject: template.subject,
+                                subject: personalizedSubject,
                                 status: 'sent',
                                 customMessage: `template:${template.id}`,
                                 sentAt: new Date()

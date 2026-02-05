@@ -43,6 +43,12 @@ const UserSchema = new mongoose.Schema({
     state: String,
     country: String,
     timestamp: Date
+  },
+  // Email preferences
+  emailPreferences: {
+    promotional: { type: Boolean, default: true },
+    orders: { type: Boolean, default: true },
+    updates: { type: Boolean, default: true }
   }
   // Add other fields as needed
 }, { timestamps: true, _id: false }); // Disable auto ObjectId generation
