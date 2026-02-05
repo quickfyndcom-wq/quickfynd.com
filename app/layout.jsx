@@ -5,6 +5,7 @@ import React from "react";
 import MetaPixel from "@/components/MetaPixel";
 import SocialProofPopup from "@/components/SocialProofPopup";
 import ClientLayout from "./ClientLayout";
+import { Analytics } from "@vercel/analytics/next";
 
 const outfit = Outfit({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
@@ -85,6 +86,7 @@ export default function RootLayout({ children }) {
         </noscript>
         {/* Add Navbar and Footer globally via ClientLayout */}
         <ClientLayout>{children}</ClientLayout>
+        <Analytics />
       </body>
     </html>
   );
