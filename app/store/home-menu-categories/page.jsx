@@ -232,29 +232,28 @@ export default function HomeMenuCategories() {
         validItems.map(async (item, idx) => {
           if (item.isBase64 && item.image && item.image.startsWith('data:')) {
             try {
-              // Convert base64 to blob
-              const response = await fetch(item.image);
-              const blob = await response.blob();
+              console.log(`Uploading image ${idx}...`);
               
-              // Create form data for upload
-              const formData = new FormData();
-              formData.append('file', blob, `category-${idx}-${Date.now()}.jpg`);
-              formData.append('fileName', `category-${idx}`);
-
-              // Upload to our image upload endpoint
+              // Upload base64 directly to our endpoint
               const uploadRes = await fetch('/api/store/upload-category-image', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData,
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                  base64Image: item.image,
+                  fileName: `category-${idx}-${Date.now()}`,
+                }),
               });
 
               if (!uploadRes.ok) {
                 const errorData = await uploadRes.json();
-                throw new Error(errorData.error || 'Image upload failed');
+                throw new Error(errorData.error || `Image upload failed (${uploadRes.status})`);
               }
 
               const uploadedData = await uploadRes.json();
-              console.log('Image uploaded:', uploadedData.url);
+              console.log(`Image ${idx} uploaded:`, uploadedData.url);
 
               return {
                 ...item,
@@ -262,8 +261,8 @@ export default function HomeMenuCategories() {
                 isBase64: false,
               };
             } catch (uploadErr) {
-              console.error('Image upload error:', uploadErr);
-              throw new Error(`Failed to upload image at index ${idx}: ${uploadErr.message}`);
+              console.error(`Image ${idx} upload error:`, uploadErr);
+              throw new Error(`Failed to upload image ${idx + 1}: ${uploadErr.message}`);
             }
           }
           return item;

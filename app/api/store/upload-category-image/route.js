@@ -22,38 +22,43 @@ export async function POST(req) {
     const userId = decoded.uid;
     console.log('Token verified for user:', userId);
 
-    // Get form data
-    const formData = await req.formData();
-    const file = formData.get('file');
-    const fileName = formData.get('fileName') || `category-${Date.now()}`;
+    const body = await req.json();
+    const { base64Image, fileName } = body;
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!base64Image) {
+      return NextResponse.json({ error: 'No image data provided' }, { status: 400 });
     }
 
-    // Check file size (max 2MB per image for faster uploads)
-    if (file.size > 2 * 1024 * 1024) {
+    // Validate base64 format
+    if (!base64Image.startsWith('data:')) {
       return NextResponse.json(
-        { error: 'File too large. Maximum 2MB per image.' },
-        { status: 413 }
+        { error: 'Invalid image format. Must be base64 data URL.' },
+        { status: 400 }
       );
     }
 
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     console.log('Uploading to ImageKit:', fileName);
 
-    // Use ImageKit REST API directly with base64 encoding
-    const base64File = buffer.toString('base64');
+    // Extract base64 data and media type
+    const matches = base64Image.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) {
+      return NextResponse.json(
+        { error: 'Invalid base64 format' },
+        { status: 400 }
+      );
+    }
+
+    const mimeType = matches[1];
+    const base64Data = matches[2];
+
+    // Use ImageKit REST API directly
     const authHeader = Buffer.from(
       `${process.env.IMAGEKIT_PRIVATE_KEY}:`
     ).toString('base64');
 
     const uploadBody = new URLSearchParams({
-      file: base64File,
-      fileName: fileName,
+      file: base64Data,
+      fileName: fileName || `category-${Date.now()}`,
       folder: '/quickfynd/home-categories',
       tags: 'home-category',
     });
@@ -67,8 +72,8 @@ export async function POST(req) {
     });
 
     if (!uploadResponse.ok) {
-      const errorData = await uploadResponse.text();
-      console.error('ImageKit API error:', errorData);
+      const errorText = await uploadResponse.text();
+      console.error('ImageKit API error:', errorText);
       throw new Error(`ImageKit upload failed: ${uploadResponse.status}`);
     }
 
