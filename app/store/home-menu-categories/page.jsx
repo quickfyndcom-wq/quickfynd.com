@@ -119,8 +119,8 @@ export default function HomeMenuCategories() {
 
   // Handle image upload with compression
   const handleImageUpload = (index, file) => {
-    if (file.size > 500000) { // 500KB limit per image
-      setMessage({ type: 'error', text: `❌ Image too large (${(file.size / 1024).toFixed(0)}KB). Please compress to under 500KB.` });
+    if (file.size > 2000000) { // 2MB limit per image
+      setMessage({ type: 'error', text: `❌ Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Please compress to under 2MB.` });
       return;
     }
 
@@ -129,6 +129,7 @@ export default function HomeMenuCategories() {
       const newItems = [...items];
       newItems[index].image = reader.result;
       newItems[index].imageFile = file;
+      newItems[index].isBase64 = true; // Mark as base64 - needs uploading
       setItems(newItems);
       setFieldErrors((prev) => {
         if (!prev[index]) return prev;
@@ -225,6 +226,52 @@ export default function HomeMenuCategories() {
         return;
       }
 
+      // Upload base64 images to ImageKit first
+      console.log('Uploading images...');
+      const itemsWithUploadedImages = await Promise.all(
+        validItems.map(async (item, idx) => {
+          if (item.isBase64 && item.image && item.image.startsWith('data:')) {
+            try {
+              // Convert base64 to blob
+              const response = await fetch(item.image);
+              const blob = await response.blob();
+              
+              // Create form data for upload
+              const formData = new FormData();
+              formData.append('file', blob, `category-${idx}-${Date.now()}.jpg`);
+              formData.append('fileName', `category-${idx}`);
+
+              // Upload to our image upload endpoint
+              const uploadRes = await fetch('/api/store/upload-category-image', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData,
+              });
+
+              if (!uploadRes.ok) {
+                const errorData = await uploadRes.json();
+                throw new Error(errorData.error || 'Image upload failed');
+              }
+
+              const uploadedData = await uploadRes.json();
+              console.log('Image uploaded:', uploadedData.url);
+
+              return {
+                ...item,
+                image: uploadedData.url,
+                isBase64: false,
+              };
+            } catch (uploadErr) {
+              console.error('Image upload error:', uploadErr);
+              throw new Error(`Failed to upload image at index ${idx}: ${uploadErr.message}`);
+            }
+          }
+          return item;
+        })
+      );
+
+      console.log('All images uploaded, saving configuration...');
+
       const response = await fetch('/api/store/home-menu-categories', {
         method: 'POST',
         headers: { 
@@ -233,7 +280,7 @@ export default function HomeMenuCategories() {
         },
         body: JSON.stringify({
           count: itemCount,
-          items: validItems,
+          items: itemsWithUploadedImages,
         }),
       });
 
