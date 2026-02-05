@@ -1,12 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getAuth } from '@/lib/firebase-admin';
-import ImageKit from 'imagekit';
-
-const imagekit = new ImageKit({
-  publicKey: process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY,
-  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
-  urlEndpoint: process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT,
-});
 
 function parseAuthHeader(req) {
   const auth = req.headers.get('authorization') || req.headers.get('Authorization');
@@ -52,20 +45,39 @@ export async function POST(req) {
 
     console.log('Uploading to ImageKit:', fileName);
 
-    // Upload to ImageKit
-    const uploadResponse = await imagekit.upload({
-      file: buffer,
-      fileName: `${userId}/${fileName}`,
-      folder: '/quickfynd/home-categories',
-      tags: ['home-category', userId],
+    // Use ImageKit REST API directly
+    const authHeader = Buffer.from(
+      `${process.env.IMAGEKIT_PRIVATE_KEY}:`
+    ).toString('base64');
+
+    const uploadResponse = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${authHeader}`,
+      },
+      body: (() => {
+        const formData = new FormData();
+        formData.append('file', new Blob([buffer]));
+        formData.append('fileName', fileName);
+        formData.append('folder', '/quickfynd/home-categories');
+        formData.append('tags', 'home-category');
+        return formData;
+      })(),
     });
 
-    console.log('Image uploaded to ImageKit:', uploadResponse.url);
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.text();
+      console.error('ImageKit API error:', errorData);
+      throw new Error(`ImageKit upload failed: ${uploadResponse.status}`);
+    }
+
+    const uploadedData = await uploadResponse.json();
+    console.log('Image uploaded to ImageKit:', uploadedData.url);
 
     return NextResponse.json(
       {
-        url: uploadResponse.url,
-        fileId: uploadResponse.fileId,
+        url: uploadedData.url,
+        fileId: uploadedData.fileId,
         message: 'Image uploaded successfully'
       },
       { status: 200 }
