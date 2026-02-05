@@ -10,12 +10,19 @@ export default function HomeCategories() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const CACHE_KEY = 'homeMenuCategoriesCache';
+  const CACHE_KEY = 'homeMenuCategoriesCache_v2'; // Changed cache key to bust old cache
 
   // Fetch categories from API
   useEffect(() => {
     const fetchCategories = async () => {
       try {
+        // Clear old cache on mount
+        const oldCache = localStorage.getItem('homeMenuCategoriesCache');
+        if (oldCache) {
+          localStorage.removeItem('homeMenuCategoriesCache');
+          console.log('Cleared old cache');
+        }
+        
         // Check localStorage first for immediate display
         const cached = localStorage.getItem(CACHE_KEY);
         let cachedData = null;
@@ -196,6 +203,7 @@ export default function HomeCategories() {
                   src={cat.image} 
                   alt={cat.name} 
                   fill
+                  unoptimized
                   className="object-cover" 
                 />
               ) : (

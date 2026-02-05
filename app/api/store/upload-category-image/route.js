@@ -65,16 +65,10 @@ export async function POST(req) {
     const extension = extensionMap[mimeType] || '.jpg';
     const fileNameWithExt = `${fileName || `category-${Date.now()}`}${extension}`;
 
-    // Use ImageKit REST API with form-urlencoded
+    // Use ImageKit REST API with JSON body (most reliable)
     const authHeader = Buffer.from(
       `${process.env.IMAGEKIT_PRIVATE_KEY}:`
     ).toString('base64');
-
-    // Use form-urlencoded format (simpler than multipart)
-    const formBody = new URLSearchParams();
-    formBody.append('file', base64Data);
-    formBody.append('fileName', fileNameWithExt);
-    formBody.append('folder', '/quickfynd/home-categories');
     
     console.log('Sending to ImageKit:', fileNameWithExt);
 
@@ -82,9 +76,13 @@ export async function POST(req) {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${authHeader}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: formBody.toString(),
+      body: JSON.stringify({
+        file: base64Data,
+        fileName: fileNameWithExt,
+        folder: '/quickfynd/home-categories',
+      }),
     });
 
     console.log('ImageKit response status:', uploadResponse.status);
