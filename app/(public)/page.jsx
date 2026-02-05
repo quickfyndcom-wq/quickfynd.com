@@ -52,7 +52,7 @@ export default function Home() {
 
     return (
         <>
-                <HomeCategories/>
+                {/* <HomeCategories/> */}
                 <Hero />
                 <LatestProducts />
                                      <CarouselSlider/>
