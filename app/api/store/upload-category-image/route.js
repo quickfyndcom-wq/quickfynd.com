@@ -42,6 +42,7 @@ export async function POST(req) {
     // Extract base64 data and media type
     const matches = base64Image.match(/^data:([^;]+);base64,(.+)$/);
     if (!matches) {
+      console.error('Base64 regex match failed');
       return NextResponse.json(
         { error: 'Invalid base64 format' },
         { status: 400 }
@@ -51,33 +52,44 @@ export async function POST(req) {
     const mimeType = matches[1];
     const base64Data = matches[2];
 
-    // Use ImageKit REST API directly
+    console.log(`Image data: ${base64Data.length} bytes`);
+
+    // Use ImageKit REST API with multipart form data approach
     const authHeader = Buffer.from(
       `${process.env.IMAGEKIT_PRIVATE_KEY}:`
     ).toString('base64');
 
-    const uploadBody = new URLSearchParams({
-      file: base64Data,
-      fileName: fileName || `category-${Date.now()}`,
-      folder: '/quickfynd/home-categories',
-      tags: 'home-category',
-    });
+    // Create proper multipart body
+    const boundary = '----QuickfyndImageUpload' + Date.now();
+    const multipartBody = 
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType}\r\n\r\n` +
+      Buffer.from(base64Data, 'base64').toString('binary') +
+      `\r\n--${boundary}\r\nContent-Disposition: form-data; name="fileName"\r\n\r\n${fileName}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="folder"\r\n\r\n/quickfynd/home-categories\r\n` +
+      `--${boundary}--\r\n`;
+
+    console.log('Sending to ImageKit...');
 
     const uploadResponse = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${authHeader}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
-      body: uploadBody,
+      body: multipartBody,
     });
 
+    console.log('ImageKit response status:', uploadResponse.status);
+
+    const responseText = await uploadResponse.text();
+    console.log('ImageKit response:', responseText.substring(0, 200));
+
     if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error('ImageKit API error:', errorText);
-      throw new Error(`ImageKit upload failed: ${uploadResponse.status}`);
+      console.error('ImageKit API error:', responseText);
+      throw new Error(`ImageKit upload failed: ${uploadResponse.status} - ${responseText.substring(0, 100)}`);
     }
 
-    const uploadedData = await uploadResponse.json();
+    const uploadedData = JSON.parse(responseText);
     console.log('Image uploaded to ImageKit:', uploadedData.url);
 
     return NextResponse.json(
@@ -89,10 +101,11 @@ export async function POST(req) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error uploading image:', error);
+    console.error('Error uploading image:', error.message);
     return NextResponse.json(
       { error: error.message || 'Failed to upload image' },
       { status: 500 }
     );
   }
 }
+
