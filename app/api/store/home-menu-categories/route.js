@@ -43,7 +43,18 @@ export async function POST(req) {
 
     await dbConnect();
 
-    const { count, items } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseErr) {
+      console.error('JSON parse error:', parseErr);
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
+
+    const { count, items } = body;
 
     if (!count || ![6, 8, 10, 12, 14].includes(count)) {
       return NextResponse.json(
@@ -52,9 +63,9 @@ export async function POST(req) {
       );
     }
 
-    if (!Array.isArray(items)) {
+    if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
-        { error: 'Items array is required' },
+        { error: 'Items array must contain at least one item' },
         { status: 400 }
       );
     }
@@ -83,17 +94,28 @@ export async function POST(req) {
       { upsert: true, new: true }
     );
 
-    return NextResponse.json({
-      message: 'Configuration saved successfully',
-      data: {
-        count: settings.count,
-        items: settings.items,
+    if (!settings) {
+      return NextResponse.json(
+        { error: 'Failed to save settings' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        message: 'Configuration saved successfully',
+        data: {
+          count: settings.count,
+          items: settings.items,
+        },
       },
-    });
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error saving home menu categories:', error);
+    const errorMessage = error?.message || 'Failed to save configuration';
     return NextResponse.json(
-      { error: error.message || 'Failed to save configuration' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
