@@ -52,31 +52,39 @@ export async function POST(req) {
     const mimeType = matches[1];
     const base64Data = matches[2];
 
-    console.log(`Image data: ${base64Data.length} bytes`);
+    console.log(`Image data: ${base64Data.length} bytes, type: ${mimeType}`);
 
-    // Use ImageKit REST API with multipart form data approach
+    // Determine file extension from mime type
+    const extensionMap = {
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/png': '.png',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+    };
+    const extension = extensionMap[mimeType] || '.jpg';
+    const fileNameWithExt = `${fileName || `category-${Date.now()}`}${extension}`;
+
+    // Use ImageKit REST API with form-urlencoded
     const authHeader = Buffer.from(
       `${process.env.IMAGEKIT_PRIVATE_KEY}:`
     ).toString('base64');
 
-    // Create proper multipart body
-    const boundary = '----QuickfyndImageUpload' + Date.now();
-    const multipartBody = 
-      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType}\r\n\r\n` +
-      Buffer.from(base64Data, 'base64').toString('binary') +
-      `\r\n--${boundary}\r\nContent-Disposition: form-data; name="fileName"\r\n\r\n${fileName}\r\n` +
-      `--${boundary}\r\nContent-Disposition: form-data; name="folder"\r\n\r\n/quickfynd/home-categories\r\n` +
-      `--${boundary}--\r\n`;
-
-    console.log('Sending to ImageKit...');
+    // Use form-urlencoded format (simpler than multipart)
+    const formBody = new URLSearchParams();
+    formBody.append('file', base64Data);
+    formBody.append('fileName', fileNameWithExt);
+    formBody.append('folder', '/quickfynd/home-categories');
+    
+    console.log('Sending to ImageKit:', fileNameWithExt);
 
     const uploadResponse = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${authHeader}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: multipartBody,
+      body: formBody.toString(),
     });
 
     console.log('ImageKit response status:', uploadResponse.status);
