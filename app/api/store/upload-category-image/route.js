@@ -45,24 +45,25 @@ export async function POST(req) {
 
     console.log('Uploading to ImageKit:', fileName);
 
-    // Use ImageKit REST API directly
+    // Use ImageKit REST API directly with base64 encoding
+    const base64File = buffer.toString('base64');
     const authHeader = Buffer.from(
       `${process.env.IMAGEKIT_PRIVATE_KEY}:`
     ).toString('base64');
+
+    const uploadBody = new URLSearchParams({
+      file: base64File,
+      fileName: fileName,
+      folder: '/quickfynd/home-categories',
+      tags: 'home-category',
+    });
 
     const uploadResponse = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${authHeader}`,
       },
-      body: (() => {
-        const formData = new FormData();
-        formData.append('file', new Blob([buffer]));
-        formData.append('fileName', fileName);
-        formData.append('folder', '/quickfynd/home-categories');
-        formData.append('tags', 'home-category');
-        return formData;
-      })(),
+      body: uploadBody,
     });
 
     if (!uploadResponse.ok) {
