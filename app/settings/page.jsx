@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { auth } from '@/lib/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { useSearchParams } from 'next/navigation'
@@ -9,6 +9,14 @@ import Link from 'next/link'
 import DashboardSidebar from '@/components/DashboardSidebar'
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <SettingsContent />
+    </Suspense>
+  )
+}
+
+function SettingsContent() {
   const [user, setUser] = useState(undefined)
   const [emailPreferences, setEmailPreferences] = useState({
     promotional: true,
