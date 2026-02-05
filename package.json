@@ -29,6 +29,7 @@
     "@tiptap/extension-text-style": "^3.9.0",
     "@tiptap/react": "^3.9.0",
     "@tiptap/starter-kit": "^3.9.0",
+    "@vercel/analytics": "^1.6.1",
     "axios": "^1.11.0",
     "date-fns": "^4.1.0",
     "firebase": "^12.6.0",
