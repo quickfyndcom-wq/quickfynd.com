@@ -3,13 +3,11 @@
 import MobileBottomNav from "@/components/MobileBottomNav";
 import GuestOrderLinker from "@/components/GuestOrderLinker";
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { fetchProducts } from "@/lib/features/product/productSlice";
 
-
-
-function PublicLayoutAuthed({ children }) {
+function PublicLayoutContent({ children }) {
     const dispatch = useDispatch();
     const { cartItems } = useSelector((state) => state.cart);
     const pathname = usePathname();
@@ -38,6 +36,10 @@ function PublicLayoutAuthed({ children }) {
     );
 }
 
-export default function PublicLayout(props) {
+function PublicLayoutAuthed({ children }) {
+    return (
+        <Suspense fallback={<div className="flex flex-col min-h-screen"><GuestOrderLinker /><main className="flex-1 pb-20 lg:pb-0">{children}</main></div>}>
+            <PublicLayoutContent>{children}</PublicLayoutContent>
+        </Suspense>
     return <PublicLayoutAuthed {...props} />;
 }
