@@ -349,7 +349,7 @@ function SearchResultsInner() {
 
 export default function SearchResults() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50" />})>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
       <SearchResultsInner />
     </Suspense>
   );
