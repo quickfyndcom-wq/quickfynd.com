@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Store from '@/models/Store';
 import StoreUser from '@/models/StoreUser';
 import admin from 'firebase-admin';
+import authSeller from '@/middlewares/authSeller';
 
 export async function GET(request) {
   try {
@@ -27,21 +28,21 @@ export async function GET(request) {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const userId = decodedToken.uid;
 
-    // Find store owned by this user
-    const store = await Store.findOne({ userId }).lean();
-    if (!store) {
+    // Resolve storeId for owners or team members
+    const storeId = await authSeller(userId);
+    if (!storeId) {
       return NextResponse.json({ error: 'Store not found' }, { status: 404 });
     }
 
     // Fetch approved users
     const users = await StoreUser.find({
-      storeId: store._id.toString(),
+      storeId: storeId,
       status: 'approved'
     }).lean();
 
     // Fetch pending invites
     const pending = await StoreUser.find({
-      storeId: store._id.toString(),
+      storeId: storeId,
       status: { $in: ['invited', 'pending'] }
     }).lean();
 

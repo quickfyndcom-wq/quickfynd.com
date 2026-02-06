@@ -65,24 +65,25 @@ export async function POST(req) {
     const extension = extensionMap[mimeType] || '.jpg';
     const fileNameWithExt = `${fileName || `category-${Date.now()}`}${extension}`;
 
-    // Use ImageKit REST API with JSON body (most reliable)
+    // Use ImageKit REST API with JSON body - send COMPLETE data URL
     const authHeader = Buffer.from(
       `${process.env.IMAGEKIT_PRIVATE_KEY}:`
     ).toString('base64');
     
     console.log('Sending to ImageKit:', fileNameWithExt);
 
+    // Create FormData for ImageKit upload
+    const formData = new FormData();
+    formData.append('file', base64Data);
+    formData.append('fileName', fileNameWithExt);
+    formData.append('folder', '/quickfynd/home-categories');
+
     const uploadResponse = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${authHeader}`,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        file: base64Data,
-        fileName: fileNameWithExt,
-        folder: '/quickfynd/home-categories',
-      }),
+      body: formData,
     });
 
     console.log('ImageKit response status:', uploadResponse.status);
@@ -97,10 +98,18 @@ export async function POST(req) {
 
     const uploadedData = JSON.parse(responseText);
     console.log('Image uploaded to ImageKit:', uploadedData.url);
+    console.log('Full ImageKit response:', JSON.stringify(uploadedData, null, 2));
+
+    // Ensure URL has file extension
+    let finalUrl = uploadedData.url;
+    if (uploadedData.url && !uploadedData.url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+      console.warn('ImageKit URL missing extension, appending:', extension);
+      finalUrl = `${uploadedData.url}${extension}`;
+    }
 
     return NextResponse.json(
       {
-        url: uploadedData.url,
+        url: finalUrl,
         fileId: uploadedData.fileId,
         message: 'Image uploaded successfully'
       },

@@ -4,7 +4,7 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 import GuestOrderLinker from "@/components/GuestOrderLinker";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { fetchProducts } from "@/lib/features/product/productSlice";
 
 
@@ -13,16 +13,20 @@ function PublicLayoutAuthed({ children }) {
     const dispatch = useDispatch();
     const { cartItems } = useSelector((state) => state.cart);
     const pathname = usePathname();
+    const searchParams = useSearchParams();
     const isHomePage = pathname === '/';
     const isCheckout = pathname === '/checkout';
+    const isShopCategoryPage = pathname === '/shop' && Boolean(searchParams.get('category'));
 
     useEffect(() => { 
         // Defer product fetch to allow critical content to load first
         const timer = setTimeout(() => {
-            dispatch(fetchProducts({})); 
+            if (!isShopCategoryPage) {
+                dispatch(fetchProducts({ limit: 100 })); // Increased limit to fetch all products
+            }
         }, 100);
         return () => clearTimeout(timer);
-    }, [dispatch]);
+    }, [dispatch, isShopCategoryPage]);
 
     return (
         <div className="flex flex-col min-h-screen">

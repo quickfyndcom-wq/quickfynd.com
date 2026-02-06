@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-import Store from "@/models/Store";
 import { getAuth } from "@/lib/firebase-admin";
+import authSeller from "@/middlewares/authSeller";
 
 export async function GET(request) {
   try {
@@ -15,10 +15,10 @@ export async function GET(request) {
     const decodedToken = await getAuth().verifyIdToken(idToken);
     const userId = decodedToken.uid;
 
-    // Verify user is a store owner
+    // Verify user has access to a store (owner or team member)
     await connectDB();
-    const store = await Store.findOne({ userId: userId });
-    if (!store) {
+    const storeId = await authSeller(userId);
+    if (!storeId) {
       return NextResponse.json(
         { error: "Store not found" },
         { status: 403 }

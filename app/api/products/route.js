@@ -59,46 +59,77 @@ export async function GET(request){
         await dbConnect();
         const { searchParams } = new URL(request.url);
         const sortBy = searchParams.get('sortBy');
-        const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50); // Default 20, max 50
+        const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 200); // Default 20, max 200
         const offset = parseInt(searchParams.get('offset') || '0', 10);
         const fastDelivery = searchParams.get('fastDelivery');
+        const categoryParam = searchParams.get('category');
+        const includeOutOfStock = searchParams.get('includeOutOfStock') === 'true';
         
         // CHECK CACHE FIRST - Skip MongoDB if cached!
+        // TEMPORARILY DISABLED TO FORCE FRESH DATA WITH CATEGORIES
         const cacheKey = generateCacheKey('products', { limit, offset, fastDelivery: fastDelivery || 'false' });
-        try {
-            const cachedProducts = getCachedData(cacheKey);
-            if (cachedProducts) {
-                return NextResponse.json({ products: cachedProducts, fromCache: true }, {
-                    headers: {
-                        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
-                        'X-Cache': 'HIT'
-                    }
-                });
-            }
-        } catch (cacheErr) {
-            console.error('Cache error:', cacheErr.message);
-            // Continue without cache if cache fails
-        }
+        // const cachedProducts = getCachedData(cacheKey);
+        // if (cachedProducts) {
+        //     return NextResponse.json({ products: cachedProducts, fromCache: true });
+        // }
 
         // OPTIMIZED: Use simple find with field selection (aggregation was causing errors)
-        const matchStage = { inStock: true };
+        const matchStage = includeOutOfStock ? {} : { inStock: true };
         if (fastDelivery === 'true') {
             matchStage.fastDelivery = true;
         }
 
+        // Optional category filter (by slug/name)
+        if (categoryParam) {
+            const normalizedName = categoryParam.replace(/-/g, ' ').trim();
+            const slugWords = categoryParam
+                .split(/[-\s]+/)
+                .filter(Boolean)
+                .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            const separator = '(?:\\s*&\\s*|\\s+|\\s+and\\s+)';
+            const categoryRegex = new RegExp(slugWords.join(separator), 'i');
+
+            const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const categoryDoc = await Category.findOne({
+                $or: [
+                    { slug: categoryParam },
+                    { name: new RegExp(`^${escapedName}$`, 'i') }
+                ]
+            }).select('_id name slug').lean();
+
+            matchStage.$or = [
+                // ObjectId matches (in case category is stored as ObjectId)
+                ...(categoryDoc?._id ? [{ category: categoryDoc._id }, { categories: categoryDoc._id }] : []),
+                // Exact string matches
+                ...(categoryDoc?.name ? [{ category: categoryDoc.name }, { categories: categoryDoc.name }] : []),
+                ...(categoryDoc?.slug ? [{ category: categoryDoc.slug }, { categories: categoryDoc.slug }] : []),
+                { category: categoryParam },
+                { categories: categoryParam },
+                { category: normalizedName },
+                { categories: normalizedName },
+                // Flexible regex matches for '&'/'and' separators
+                { category: categoryRegex },
+                { categories: categoryRegex }
+            ];
+        }
+
         let products = await Product.find(matchStage)
-            .select('name slug description shortDescription mrp price images category sku hasVariants variants attributes fastDelivery stockQuantity imageAspectRatio createdAt')
+            .select('name slug description shortDescription mrp price images category categories sku hasVariants variants attributes fastDelivery stockQuantity imageAspectRatio createdAt')
             .populate('category', 'name slug')
+            .populate('categories', 'name slug')
             .sort({ createdAt: -1 })
             .skip(offset)
             .limit(limit)
             .lean()
             .exec();
 
-        // Normalize category and calculate discount
+        // Normalize category/categories and calculate discount
         products = products.map(p => ({
             ...p,
             category: p.category?.name || p.category || null,
+            categories: Array.isArray(p.categories) 
+                ? p.categories.map(cat => cat?.name || cat)
+                : [],
             discount: (p.mrp && p.price && p.mrp > p.price) 
                 ? Math.round(((p.mrp - p.price) / p.mrp) * 100)
                 : null

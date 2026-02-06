@@ -56,7 +56,6 @@ export default function Home() {
                 <Hero />
                 <LatestProducts />
                                      <CarouselSlider/>
-
                 <BannerSlider/>
             {/* Carousel Slider below BannerSlider */}
            

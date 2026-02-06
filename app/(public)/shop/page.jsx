@@ -1,55 +1,76 @@
 "use client";
-import { Suspense, useMemo, useState, useCallback } from "react";
+import { Suspense, useMemo, useState, useCallback, useEffect, useRef } from "react";
 import ProductCard from "@/components/ProductCard"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useSelector } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
+import { fetchProducts } from "@/lib/features/product/productSlice"
 
 function ShopContent() {
+    const dispatch = useDispatch();
     const searchParams = useSearchParams();
     const search = searchParams.get('search');
     const categoryParam = searchParams.get('category');
     const router = useRouter();
     const products = useSelector(state => state.product.list);
     const loading = useSelector(state => state.product.loading);
+    const [mounted, setMounted] = useState(false);
+    const fetchedRef = useRef({ category: null, general: false });
+    const [categoryProducts, setCategoryProducts] = useState([]);
+    const [categoryLoading, setCategoryLoading] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        // Fetch category products directly to avoid global list overrides
+        let isActive = true;
+
+        if (categoryParam) {
+            setCategoryLoading(true);
+            fetch(`/api/products?category=${encodeURIComponent(categoryParam)}&limit=200&includeOutOfStock=true`)
+                .then((res) => res.json())
+                .then((data) => {
+                    if (!isActive) return;
+                    setCategoryProducts(Array.isArray(data.products) ? data.products : []);
+                })
+                .catch(() => {
+                    if (!isActive) return;
+                    setCategoryProducts([]);
+                })
+                .finally(() => {
+                    if (!isActive) return;
+                    setCategoryLoading(false);
+                });
+            return () => {
+                isActive = false;
+            };
+        }
+
+        // Fallback: ensure general list is available when no category filter
+        if (!categoryParam && !fetchedRef.current.general && !loading) {
+            fetchedRef.current.general = true;
+            dispatch(fetchProducts({ limit: 100 }));
+        }
+
+        return () => {
+            isActive = false;
+        };
+    }, [dispatch, categoryParam, loading]);
 
     const normalizeText = useCallback((value) => {
         if (value === null || value === undefined) return '';
         return String(value).toLowerCase();
     }, []);
 
-    // Filter by search and/or category
-    const filteredProducts = useMemo(() => {
-        let filtered = products;
+    const sourceProducts = categoryParam ? categoryProducts : products;
 
-        // Filter by category if category param exists
-        if (categoryParam) {
-            filtered = filtered.filter(product => {
-                // Convert categoryParam to normal format (e.g., "women-s-fashion" -> "Women's Fashion")
-                let normalizedParam = categoryParam
-                    .split('-')
-                    .map((word, index) => {
-                        // Handle possessive 's
-                        if (word === 's' && index > 0) {
-                            return "'s";
-                        }
-                        return word.charAt(0).toUpperCase() + word.slice(1);
-                    })
-                    .join(' ')
-                    .replace(/\s's\s/g, "'s "); // Ensure proper spacing around apostrophe
-                
-                // Check if categories array includes the category
-                if (product.categories && Array.isArray(product.categories)) {
-                    return product.categories.some(cat => {
-                        const catValue = typeof cat === 'string' ? cat : (cat?.slug || cat?.name);
-                        return catValue?.toLowerCase() === normalizedParam.toLowerCase();
-                    });
-                }
-                // Fallback to single category field
-                const productCategory = product.category?.slug || product.category?.name || product.category;
-                if (!productCategory) return false;
-                return productCategory.toLowerCase() === normalizedParam.toLowerCase();
-            });
-        }
+    // Filter by search
+    const filteredProducts = useMemo(() => {
+        let filtered = sourceProducts;
+
+        // Category filtering is handled by the API when category param exists
+        // to avoid mismatches between ID-based categories and display names.
 
         // Filter by search term if search param exists
         if (search) {
@@ -88,7 +109,7 @@ function ShopContent() {
         }
 
         return filtered;
-    }, [products, search, categoryParam, normalizeText]);
+    }, [sourceProducts, search, normalizeText]);
 
     // Get display title
     const pageTitle = useMemo(() => {
@@ -115,7 +136,7 @@ function ShopContent() {
                 </div>
 
                 {/* Products Grid - Full Width (No Sidebar) */}
-                {loading ? (
+                {!mounted || (categoryParam ? categoryLoading : loading) ? (
                     <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
                         <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
                         <p className="text-gray-500 text-lg">Loading products...</p>

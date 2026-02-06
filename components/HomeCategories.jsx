@@ -38,8 +38,8 @@ export default function HomeCategories() {
             console.error('Cache parse error:', e);
           }
         }
-
-        // Fetch fresh data from API
+       
+        
         const response = await fetch('/api/store/home-menu-categories', { cache: 'no-store' });
 
         if (response.ok) {
@@ -48,6 +48,10 @@ export default function HomeCategories() {
           
           if (data.items && Array.isArray(data.items) && data.items.length > 0) {
             console.log('Setting categories from API:', data.items);
+            // Debug: Log image URLs
+            data.items.forEach((item, idx) => {
+              console.log(`Category ${idx} (${item.name}): image URL = ${item.image || 'MISSING'}`);
+            });
             setCategories(data.items);
             
             // Try to save to localStorage, but handle quota exceeded gracefully
@@ -142,7 +146,40 @@ export default function HomeCategories() {
     return '/shop';
   };
 
-  // Show loading state with skeleton
+  // Fix ImageKit URLs by adding format transformation and default extension
+  const fixImageKitUrl = (url) => {
+    if (!url) return null;
+    
+    if (url.includes('ik.imagekit.io')) {
+      if (!url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+        if (url.includes('?')) {
+          return url.replace('?', '.jpg?');
+        } else {
+          return `${url}.jpg?tr=f-auto,q-80`;
+        }
+      }
+      if (!url.includes('?')) {
+        return `${url}?tr=f-auto,q-80`;
+      }
+    }
+    return url;
+  };
+
+  const getCategoryGradient = (name) => {
+    const colors = [
+      'from-blue-400 to-blue-600',
+      'from-purple-400 to-purple-600',
+      'from-pink-400 to-pink-600',
+      'from-red-400 to-red-600',
+      'from-orange-400 to-orange-600',
+      'from-yellow-400 to-yellow-600',
+      'from-green-400 to-green-600',
+      'from-teal-400 to-teal-600',
+    ];
+    const hash = name.charCodeAt(0) % colors.length;
+    return colors[hash];
+  };
+
   if (loading && categories.length === 0) {
     return (
       <div className="relative w-full max-w-[1250px] mx-auto bg-white py-4 px-2">
@@ -197,17 +234,29 @@ export default function HomeCategories() {
             className="flex flex-col items-center flex-shrink-0 w-24 md:flex-1 cursor-pointer hover:scale-105 transition-all duration-200 p-2 md:p-3"
             style={{ scrollSnapAlign: 'start' }}
           >
-            <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden">
+            <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden bg-gray-100">
               {cat.image ? (
-                <Image 
-                  src={cat.image} 
-                  alt={cat.name} 
-                  fill
-                  unoptimized
-                  className="object-cover" 
-                />
+                <>
+                  <Image 
+                    src={fixImageKitUrl(cat.image)} 
+                    alt={cat.name}
+                    fill
+                    className="object-cover"
+                    onError={(e) => {
+                      // Hide broken image, show gradient fallback
+                      e.target.style.display = 'none';
+                      const fallback = e.target.nextElementSibling;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                    unoptimized={true}
+                  />
+                  {/* Gradient fallback shown on image error */}
+                  <div style={{ display: 'none' }} className={`w-full h-full flex items-center justify-center bg-gradient-to-br ${getCategoryGradient(cat.name)} text-white text-2xl font-bold`}>
+                    {cat.name.charAt(0).toUpperCase()}
+                  </div>
+                </>
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400 text-xs">
                   No image
                 </div>
               )}

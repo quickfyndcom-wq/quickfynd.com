@@ -261,6 +261,11 @@ export default function HomeMenuCategories() {
 
               const uploadedData = await uploadRes.json();
               console.log(`Image ${idx} uploaded:`, uploadedData.url);
+              console.log(`Full upload response:`, uploadedData);
+
+              if (!uploadedData.url) {
+                throw new Error(`No URL returned from upload: ${JSON.stringify(uploadedData)}`);
+              }
 
               return {
                 ...item,
