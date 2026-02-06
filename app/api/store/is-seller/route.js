@@ -37,7 +37,7 @@ export async function GET(request) {
         }
         console.log('[is-seller API] User IS a seller, fetching store info...');
         await dbConnect();
-        const storeInfo = await Store.findOne({userId}).lean();
+        const storeInfo = await Store.findById(sellerResult).lean();
         console.log('[is-seller API] Store info:', storeInfo ? 'Found' : 'Not found');
         return NextResponse.json({ isSeller: true, storeInfo, userId });
     } catch (error) {
