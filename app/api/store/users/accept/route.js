@@ -44,8 +44,7 @@ export async function POST(request) {
       {
         status: "approved",
         userId,
-        inviteToken: null,
-        inviteExpiry: null,
+        $unset: { inviteToken: "", inviteExpiry: "" },
       },
       { new: true }
     ).lean();
