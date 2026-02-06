@@ -41,5 +41,9 @@ function PublicLayoutAuthed({ children }) {
         <Suspense fallback={<div className="flex flex-col min-h-screen"><GuestOrderLinker /><main className="flex-1 pb-20 lg:pb-0">{children}</main></div>}>
             <PublicLayoutContent>{children}</PublicLayoutContent>
         </Suspense>
+    );
+}
+
+export default function PublicLayout(props) {
     return <PublicLayoutAuthed {...props} />;
 }
