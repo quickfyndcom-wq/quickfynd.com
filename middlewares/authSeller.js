@@ -51,8 +51,8 @@ const authSeller = async (userId) => {
         if (teamMembership) {
             console.log('[authSeller] Found team membership:', teamMembership.storeId);
             const store = await Store.findById(teamMembership.storeId).lean();
-            if (store && store.status === 'approved') {
-                console.log('[authSeller] User has access to approved store via team membership:', store._id);
+            if (store && store.status !== 'rejected') {
+                console.log('[authSeller] User has access to store via team membership:', store._id, 'status:', store.status || 'missing');
                 return store._id.toString();
             }
         }

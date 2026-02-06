@@ -3,6 +3,7 @@ import StoreLayout from "@/components/store/StoreLayout";
 
 import { ImageKitContext } from 'imagekitio-next'
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/useAuth"
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -10,6 +11,7 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 export default function RootAdminLayout({ children }) {
     const { user, loading } = useAuth();
     const [mounted, setMounted] = useState(false);
+    const pathname = usePathname();
     console.log('[layout.jsx] mounted:', mounted, 'loading:', loading, 'user:', user);
 
     const publicKey = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY
@@ -74,6 +76,12 @@ export default function RootAdminLayout({ children }) {
                 </button>
             </div>
         );
+    }
+
+    const isInviteAcceptPage = pathname?.startsWith('/store/invite/accept');
+
+    if (isInviteAcceptPage) {
+        return children;
     }
 
     return (
