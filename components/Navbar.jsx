@@ -21,9 +21,15 @@ import SignInModal from './SignInModal';
 const Navbar = () => {
   // State for image search modal
   const [showImageSearch, setShowImageSearch] = useState(false);
+  const [imageSearchResults, setImageSearchResults] = useState([]);
+  const [imageSearchLoading, setImageSearchLoading] = useState(false);
+  const [showImageSearchResults, setShowImageSearchResults] = useState(false);
+  const imagePasteCooldownRef = useRef(0);
 
   // Helper function for image search
   const handleImageSearch = async (file) => {
+    if (imageSearchLoading) return;
+    setImageSearchLoading(true);
     const formData = new FormData();
     formData.append('image', file);
     try {
@@ -32,16 +38,81 @@ const Navbar = () => {
         body: formData
       });
       const data = await res.json();
-      let keyword = data.keyword || (Array.isArray(data.keywords) ? data.keywords[0] : '');
-      if (keyword) {
-        window.location.href = `/shop?search=${encodeURIComponent(keyword)}`;
+      
+      if (data.error) {
+        toast.error(data.error || 'Image search failed');
+        setImageSearchLoading(false);
+        return;
+      }
+
+      if (data.products && data.products.length > 0) {
+        const safeKeyword = data.keyword || '';
+        if (typeof window !== 'undefined') {
+          const payload = {
+            keyword: safeKeyword,
+            products: data.products || [],
+            recommendedProducts: data.recommendedProducts || [],
+            resultCount: data.resultCount || 0,
+            searchedAt: Date.now()
+          };
+          sessionStorage.setItem('imageSearchResults', JSON.stringify(payload));
+        }
+        const queryParams = new URLSearchParams({
+          source: 'image',
+          keyword: safeKeyword
+        });
+        setShowImageSearch(false);
+        router.push(`/search-results?${queryParams.toString()}`);
+        toast.success(`Found ${data.resultCount} product${data.resultCount !== 1 ? 's' : ''}`);
+      } else if (data.recommendedProducts && data.recommendedProducts.length > 0) {
+        if (typeof window !== 'undefined') {
+          const payload = {
+            keyword: data.keyword || '',
+            products: [],
+            recommendedProducts: data.recommendedProducts || [],
+            resultCount: 0,
+            searchedAt: Date.now()
+          };
+          sessionStorage.setItem('imageSearchResults', JSON.stringify(payload));
+        }
+        setShowImageSearch(false);
+        router.push('/search-results?source=image');
+        toast('No exact match. Showing recommended products.');
       } else {
-        alert('No matching product found.');
+        toast.error('No matching products found. Try a different image.');
       }
     } catch (err) {
-      alert('Image search failed.');
+      console.error(err);
+      toast.error('Image search failed. Please try again.');
+    } finally {
+      setImageSearchLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!showImageSearch) return;
+
+    const handlePaste = (event) => {
+      if (imageSearchLoading) return;
+      const now = Date.now();
+      if (now - imagePasteCooldownRef.current < 1500) return;
+      const items = event.clipboardData?.items || [];
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            event.preventDefault();
+            imagePasteCooldownRef.current = now;
+            handleImageSearch(file);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [showImageSearch]);
 
   // State for categories
   const [categories, setCategories] = useState([]);
@@ -417,6 +488,17 @@ const Navbar = () => {
                   onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                   className="w-full bg-transparent outline-none placeholder-gray-400 text-gray-800 text-sm"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowImageSearch(true)}
+                  aria-label="Search by image"
+                  className="flex-shrink-0"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-500">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V7.5A2.25 2.25 0 015.25 5.25h2.086a2.25 2.25 0 001.591-.659l.828-.828A2.25 2.25 0 0111.75 3h.5a2.25 2.25 0 011.595.663l.828.828a2.25 2.25 0 001.591.659h2.086A2.25 2.25 0 0121 7.5v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5z" />
+                    <circle cx="12" cy="13" r="3" />
+                  </svg>
+                </button>
               </div>
               {searchFocused && searchSuggestions.length > 0 && (
                 <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
@@ -490,116 +572,103 @@ const Navbar = () => {
           </div>
 
           {/* Center - Links and Search */}
-          <div className="hidden lg:flex items-center flex-1 justify-center gap-6 px-8">
-            {/* <Link href="/top-selling" className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-              </svg>
-              Top Selling Items
-            </Link> */}
-          
-            {/* <Link href="/new" className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-              New
-            </Link> */}
+          <div className="hidden lg:flex items-center flex-1 justify-between gap-3 px-4">
+            {/* Left Links */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              <Link href="/5-star-rated" className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1.5">
+                <StarIcon size={16} className="text-orange-500" fill="#f97316" />
+                5 Star Rated
+              </Link>
 
-            <Link href="/5-star-rated" className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1.5">
-              <StarIcon size={16} className="text-orange-500" fill="#f97316" />
-              5 Star Rated
-            </Link>
+              {/* Categories Dropdown */}
+              <div
+                className="relative"
+                onMouseEnter={() => {
+                  if (categoryTimer.current) clearTimeout(categoryTimer.current);
+                  setCategoriesDropdownOpen(true);
+                }}
+                onMouseLeave={() => {
+                  if (categoryTimer.current) clearTimeout(categoryTimer.current);
+                  categoryTimer.current = setTimeout(() => {
+                    setCategoriesDropdownOpen(false);
+                    setHoveredCategory(null);
+                  }, 200);
+                }}
+              >
+                <button className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1">
+                  Categories
+                  <svg className={`w-4 h-4 transition-transform ${categoriesDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
 
-         
-            
-            {/* Categories Dropdown */}
-            <div
-              className="relative"
-              onMouseEnter={() => {
-                if (categoryTimer.current) clearTimeout(categoryTimer.current);
-                setCategoriesDropdownOpen(true);
-              }}
-              onMouseLeave={() => {
-                if (categoryTimer.current) clearTimeout(categoryTimer.current);
-                categoryTimer.current = setTimeout(() => {
-                  setCategoriesDropdownOpen(false);
-                  setHoveredCategory(null);
-                }, 200);
-              }}
-            >
-              <button className="text-sm font-medium text-white hover:text-orange-500 transition whitespace-nowrap flex items-center gap-1">
-                Categories
-                <svg className={`w-4 h-4 transition-transform ${categoriesDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {categoriesDropdownOpen && categories.length > 0 && (
-                <div className="absolute left-0 top-full mt-2 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden flex">
-                  {/* Main Categories */}
-                  <div className="w-64 bg-gray-50 border-r border-gray-200">
-                    {categories.filter(cat => !cat.parentId).map((category) => {
-                      const categorySlug = category.slug || category.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                      return (
-                        <div
-                          key={category._id}
-                          className="relative"
-                          onMouseEnter={() => setHoveredCategory(category._id)}
-                        >
-                          <Link
-                            href={`/shop?category=${categorySlug}`}
-                            className={`flex items-center justify-between px-4 py-3 hover:bg-orange-50 transition ${
-                              hoveredCategory === category._id ? 'bg-orange-50 text-orange-600' : 'text-gray-700'
-                            }`}
-                            onClick={() => {
-                              setCategoriesDropdownOpen(false);
-                              setHoveredCategory(null);
-                            }}
+                {categoriesDropdownOpen && categories.length > 0 && (
+                  <div className="absolute left-0 top-full mt-2 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden flex">
+                    {/* Main Categories */}
+                    <div className="w-64 bg-gray-50 border-r border-gray-200">
+                      {categories.filter(cat => !cat.parentId).map((category) => {
+                        const categorySlug = category.slug || category.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                        return (
+                          <div
+                            key={category._id}
+                            className="relative"
+                            onMouseEnter={() => setHoveredCategory(category._id)}
                           >
-                            <span className="font-medium">{category.name}</span>
-                            {category.children && category.children.length > 0 && (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            )}
-                          </Link>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Subcategories */}
-                  {hoveredCategory && (
-                    <div className="w-64 bg-white p-4">
-                      {categories
-                        .find(cat => cat._id === hoveredCategory)
-                        ?.children?.map((subcat) => {
-                          const subcatSlug = subcat.slug || subcat.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                          return (
                             <Link
-                              key={subcat._id}
-                              href={`/shop?category=${subcatSlug}`}
-                              className="block px-3 py-2 text-sm text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded transition"
+                              href={`/shop?category=${categorySlug}`}
+                              className={`flex items-center justify-between px-4 py-3 hover:bg-orange-50 transition ${
+                                hoveredCategory === category._id ? 'bg-orange-50 text-orange-600' : 'text-gray-700'
+                              }`}
                               onClick={() => {
                                 setCategoriesDropdownOpen(false);
                                 setHoveredCategory(null);
                               }}
                             >
-                              {subcat.name}
+                              <span className="font-medium">{category.name}</span>
+                              {category.children && category.children.length > 0 && (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              )}
                             </Link>
-                          );
-                        })}
-                      {(!categories.find(cat => cat._id === hoveredCategory)?.children?.length) && (
-                        <p className="text-sm text-gray-400 px-3 py-2">No subcategories</p>
-                      )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
-              )}
+
+                    {/* Subcategories */}
+                    {hoveredCategory && (
+                      <div className="w-64 bg-white p-4">
+                        {categories
+                          .find(cat => cat._id === hoveredCategory)
+                          ?.children?.map((subcat) => {
+                            const subcatSlug = subcat.slug || subcat.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                            return (
+                              <Link
+                                key={subcat._id}
+                                href={`/shop?category=${subcatSlug}`}
+                                className="block px-3 py-2 text-sm text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded transition"
+                                onClick={() => {
+                                  setCategoriesDropdownOpen(false);
+                                  setHoveredCategory(null);
+                                }}
+                              >
+                                {subcat.name}
+                              </Link>
+                            );
+                          })}
+                        {(!categories.find(cat => cat._id === hoveredCategory)?.children?.length) && (
+                          <p className="text-sm text-gray-400 px-3 py-2">No subcategories</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          
-            {/* Search Bar */}
-            <form onSubmit={handleSearch} className="relative flex items-center w-full max-w-md text-sm gap-2 bg-gray-100 px-4 py-2.5 rounded-full border border-gray-200 focus-within:border-orange-300 focus-within:ring-1 focus-within:ring-orange-200 transition">
+
+            {/* Search Bar - Flexible and expanded */}
+            <form onSubmit={handleSearch} className="relative flex items-center flex-1 text-sm gap-2 bg-gray-100 px-4 py-2.5 rounded-full border border-gray-200 focus-within:border-orange-300 focus-within:ring-1 focus-within:ring-orange-200 transition min-w-0">
               <Search size={18} className="text-gray-500 flex-shrink-0" />
               <input
                 type="text"
@@ -608,7 +677,7 @@ const Navbar = () => {
                 onChange={(e) => setSearch(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
                 onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-                className="w-full bg-transparent outline-none placeholder-gray-500 text-gray-700"
+                className="flex-1 bg-transparent outline-none placeholder-gray-500 text-gray-700 min-w-0"
                 required
               />
               {searchFocused && searchSuggestions.length > 0 && (
@@ -620,7 +689,7 @@ const Navbar = () => {
                       className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
                       onClick={() => setSearchFocused(false)}
                     >
-                      <div className="relative h-8 w-8 overflow-hidden rounded-md bg-gray-100">
+                      <div className="relative h-8 w-8 overflow-hidden rounded-md bg-gray-100 flex-shrink-0">
                         {product.image || product.images?.[0] ? (
                           <Image
                             src={product.image || product.images?.[0]}
@@ -631,7 +700,7 @@ const Navbar = () => {
                           />
                         ) : null}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <span className="font-medium block truncate">{product.name}</span>
                         {product.brand && (
                           <span className="text-xs text-gray-500 truncate">{product.brand}</span>
@@ -641,14 +710,13 @@ const Navbar = () => {
                   ))}
                 </div>
               )}
-              {/* Camera Icon for image search (temporarily hidden)
+              {/* Camera Icon for image search */}
               <button type="button" className="flex-shrink-0" onClick={() => setShowImageSearch(true)}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-gray-500 hover:text-blue-600">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V7.5A2.25 2.25 0 015.25 5.25h2.086a2.25 2.25 0 001.591-.659l.828-.828A2.25 2.25 0 0111.75 3h.5a2.25 2.25 0 011.595.663l.828.828a2.25 2.25 0 001.591.659h2.086A2.25 2.25 0 0121 7.5v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5z" />
                   <circle cx="12" cy="13" r="3" />
                 </svg>
               </button>
-              */}
             </form>
             {/* Image Search Modal (Desktop only) */}
             {typeof window !== 'undefined' && window.innerWidth >= 768 && showImageSearch && (
@@ -685,15 +753,67 @@ const Navbar = () => {
                         id="image-search-upload-modal"
                         type="file"
                         accept="image/*"
+                        capture="environment"
                         className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files[0];
                           if (file) await handleImageSearch(file);
                         }}
                       />
-                      <span className="bg-red-600 text-white px-6 py-2 rounded-full font-bold cursor-pointer">Upload a photo</span>
+                      <span className={`bg-red-600 text-white px-6 py-2 rounded-full font-bold cursor-pointer inline-block transition ${imageSearchLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>{imageSearchLoading ? 'Searching...' : 'Upload a photo'}</span>
                     </label>
                     <span className="text-gray-400 text-xs mt-2">*For a quick search hit CTRL+V to paste an image into the search box</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Image Search Results Modal */}
+            {showImageSearchResults && imageSearchResults.length > 0 && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6 relative animate-slideUp">
+                  <button
+                    onClick={() => setShowImageSearchResults(false)}
+                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition z-10 sticky"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <h2 className="text-2xl font-bold mb-1">Found {imageSearchResults.length} Product{imageSearchResults.length !== 1 ? 's' : ''}</h2>
+                  <p className="text-sm text-gray-500 mb-6">Click on a product to view details</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {imageSearchResults.map((product) => (
+                      <Link
+                        key={product._id}
+                        href={`/product/${product.slug}`}
+                        onClick={() => setShowImageSearchResults(false)}
+                        className="group cursor-pointer"
+                      >
+                        <div className="bg-gray-100 rounded-lg overflow-hidden mb-2 h-48 relative group-hover:shadow-lg transition">
+                          {product.image ? (
+                            <Image
+                              src={product.image}
+                              alt={product.name}
+                              fill
+                              className="object-cover group-hover:scale-110 transition"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                              <PackageIcon className="w-12 h-12 text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+                        <h3 className="font-semibold text-sm text-gray-800 line-clamp-2 group-hover:text-blue-600">{product.name}</h3>
+                        <p className="text-xs text-gray-500 mb-2">{product.category}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-lg text-blue-600">₹{product.price}</span>
+                          {product.mrp > product.price && (
+                            <span className="text-xs text-gray-400 line-through">₹{product.mrp}</span>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -941,6 +1061,17 @@ const Navbar = () => {
               className="w-full bg-transparent outline-none placeholder-gray-500 text-gray-700"
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowImageSearch(true)}
+              aria-label="Search by image"
+              className="flex-shrink-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-gray-500">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V7.5A2.25 2.25 0 015.25 5.25h2.086a2.25 2.25 0 001.591-.659l.828-.828A2.25 2.25 0 0111.75 3h.5a2.25 2.25 0 011.595.663l.828.828a2.25 2.25 0 001.591.659h2.086A2.25 2.25 0 0121 7.5v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5z" />
+                <circle cx="12" cy="13" r="3" />
+              </svg>
+            </button>
             {searchFocused && searchSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
                 {searchSuggestions.map((product) => (
