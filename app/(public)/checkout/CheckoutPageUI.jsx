@@ -66,6 +66,7 @@ export default function CheckoutPage() {
   const [showPincodeModal, setShowPincodeModal] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [showAlternatePhone, setShowAlternatePhone] = useState(false);
+  const [abandonSaved, setAbandonSaved] = useState(false);
 
   // Wallet / Coins
   const [walletInfo, setWalletInfo] = useState({ coins: 0, rupeesValue: 0 });
@@ -166,6 +167,67 @@ export default function CheckoutPage() {
       dispatch(fetchProducts({}));
     }
   }, [dispatch, products]);
+
+  // Capture abandoned checkout (debounced)
+  useEffect(() => {
+    if (placingOrder || payingNow) return;
+    const cartEntries = Object.entries(cartItems || {});
+    if (cartEntries.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const items = cartEntries.map(([id, value]) => {
+          const quantity = typeof value === 'number' ? value : value?.quantity || 0;
+          const product = products.find((p) => p._id === id);
+          const price = product?.salePrice || product?.price || 0;
+          return {
+            productId: id,
+            quantity,
+            price,
+            name: product?.name || 'Product',
+            variantOptions: typeof value === 'object' ? value?.variantOptions || null : null,
+          };
+        }).filter(it => it.quantity > 0);
+
+        if (items.length === 0) return;
+
+        const cartTotal = items.reduce((sum, it) => sum + (Number(it.price) * Number(it.quantity)), 0);
+
+        const payload = {
+          items,
+          cartTotal,
+          currency: process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '₹',
+          userId: user?.uid || null,
+          customer: {
+            name: form.name || null,
+            email: form.email || user?.email || null,
+            phone: form.phone || null,
+            address: {
+              country: form.country,
+              state: form.state,
+              district: form.district,
+              city: form.city,
+              street: form.street,
+              pincode: form.pincode,
+            },
+          },
+        };
+
+        await fetch('/api/abandoned-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true,
+        });
+
+        setAbandonSaved(true);
+      } catch (e) {
+        // Silent fail
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [form, cartItems, products, user, placingOrder, payingNow]);
 
   // Fetch addresses for logged-in users
   useEffect(() => {
@@ -1507,6 +1569,33 @@ export default function CheckoutPage() {
         </div>
         {/* Right column: discount input, order summary and place order button */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 h-fit flex flex-col justify-between">
+          {/* Date & Time Section */}
+          <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="text-sm text-gray-600 space-y-2">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M6 2a1 1 0 000 2h8a1 1 0 100-2H6z"></path>
+                  <path fillRule="evenodd" d="M2 5a2 2 0 012-2 1 1 0 100 2H2v11a2 2 0 002 2h12a2 2 0 002-2V7h-.732a1 1 0 100-2A2 2 0 0016 3a2 2 0 00-2-2H6a2 2 0 00-2 2zm5 4a1 1 0 000 2h4a1 1 0 000-2H7z" clipRule="evenodd"></path>
+                </svg>
+                <span className="font-semibold text-gray-900">Order Date & Time</span>
+              </div>
+              <div className="ml-6 text-xs space-y-1">
+                <div className="text-gray-700">
+                  <span className="font-medium">{new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                </div>
+                <div className="text-gray-600">
+                  <span className="font-medium">{new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-green-700 font-medium flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path>
+                </svg>
+                Estimated delivery in {shippingSetting?.estimatedDays || '2-5'} business days
+              </div>
+            </div>
+          </div>
+
           {/* Discounts & Coupons - Clickable Section */}
           <button
             type="button"
@@ -1529,6 +1618,40 @@ export default function CheckoutPage() {
           
           {/* Order Details */}
           <h2 className="font-bold text-lg mb-4 text-gray-900">Order details</h2>
+
+          {/* Product Items Summary */}
+          <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200 max-h-60 overflow-y-auto">
+            <h3 className="font-semibold text-sm text-gray-900 mb-3">Products ({cartArray.length})</h3>
+            <div className="space-y-2">
+              {cartArray.map((item) => (
+                <div key={item._id} className="flex gap-2 pb-2 border-b border-slate-200 last:border-0">
+                  <div className="relative flex-shrink-0">
+                    <img 
+                      src={item.image || item.images?.[0] || '/placeholder.png'} 
+                      alt={item.name} 
+                      className="w-10 h-10 object-cover rounded border border-slate-300"
+                    />
+                    <div className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+                      {item.quantity}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-900 line-clamp-2">{item.name}</p>
+                    <p className="text-xs text-gray-600">{item.brand || 'N/A'}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs font-semibold text-gray-900">
+                      ₹{(item.price * item.quantity).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500">@₹{item.price.toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Price Breakdown */}
+          <hr className="my-3" />
           <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
             <div className="flex justify-between text-sm text-gray-900">
               <span>Items</span>

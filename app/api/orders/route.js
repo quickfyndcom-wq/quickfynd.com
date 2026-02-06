@@ -417,36 +417,6 @@ export async function POST(request) {
                 });
             orderIds.push(order._id.toString());
 
-            // Decrement stock for items in this store order
-            for (const it of sellerItems) {
-                const prod = await Product.findById(it.id);
-                if (!prod) continue;
-                const qty = Number(it.quantity) || 0;
-                if (qty <= 0) continue;
-
-                // Product-level stock
-                if (typeof prod.stockQuantity === 'number') {
-                    prod.stockQuantity = Math.max(0, prod.stockQuantity - qty);
-                    prod.inStock = prod.stockQuantity > 0;
-                }
-
-                // Variant-level stock if provided
-                if (it.variantOptions && Array.isArray(prod.variants) && prod.variants.length > 0) {
-                    const { color, size, bundleQty } = it.variantOptions || {};
-                    const idx = prod.variants.findIndex(v => {
-                        const cOk = v.options?.color ? v.options.color === color : !color;
-                        const sOk = v.options?.size ? v.options.size === size : !size;
-                        const bOk = v.options?.bundleQty ? Number(v.options.bundleQty) === Number(bundleQty) : !bundleQty;
-                        return cOk && sOk && bOk;
-                    });
-                    if (idx >= 0) {
-                        const current = typeof prod.variants[idx].stock === 'number' ? prod.variants[idx].stock : 0;
-                        prod.variants[idx].stock = Math.max(0, current - qty);
-                    }
-                }
-                await prod.save();
-            }
-
             // Email notification using sendOrderConfirmationEmail
             try {
                 let customerEmail = '';
